@@ -1,0 +1,46 @@
+# 行前夹 TripClip —— GitHub Pages 自动部署
+# 每次 push 到 main 分支，自动构建并发布到 GitHub Pages
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # 允许在 Actions 页面手动触发（点 "Run workflow" 即可重新部署）
+
+# 最小权限：只授予部署 Pages 所需的权限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只允许一个部署任务（连推多次时自动取消旧的）
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 组装发布目录（只打包站点文件）
+        run: |
+          mkdir -p _site
+          cp index.html _site/index.html
+          # 以后新增静态资源（css/js/图片等）在此追加，例如：
+          # cp style.css _site/
+          # cp -r assets _site/
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

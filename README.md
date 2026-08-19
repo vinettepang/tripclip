@@ -57,6 +57,8 @@ python3 -m http.server 8123
 ## 文件
 
 - `index.html` — 应用本体（单文件，含全部样式与逻辑，当前正式版 v0.3）
+- `.github/workflows/deploy.yml` — GitHub Pages 自动部署（push main 自动发布）
+- `PUBLISH.md` — 发布到 GitHub Pages 的手动操作手册
 - `index.v0.4.html` — 含 Notion 同步功能的完整代码（**二期资产**，暂不启用）
 - `worker.js` — Notion 同步中转服务（Cloudflare Worker 部署代码，**二期资产**）
 - `DEPLOY.md` — Notion 同步部署指南（二期启用时使用）
