@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>行前夹 TripClip v0.4 · 出行前资料收集</title>
+<style>
+:root{
+  --bg:#f6f4ef; --card:#ffffff; --ink:#2b2620; --sub:#8a8378; --line:#e8e3da;
+  --brand:#e07a5f; --brand-deep:#c9603f; --teal:#3d8b8a; --tag:#f2ece2;
+  --ok:#3d8b55; --warn:#c98a2d; --danger:#c9553f; --radius:14px;
+  --shadow:0 1px 2px rgba(43,38,32,.05),0 4px 16px rgba(43,38,32,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased}
+.container{max-width:880px;margin:0 auto;padding:24px 20px 80px}
+header{display:flex;align-items:center;justify-content:space-between;padding:12px 0 20px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#e07a5f,#c9603f);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px}
+.brand h1{font-size:20px;font-weight:700;letter-spacing:.5px}
+.ver-badge{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:20px;background:var(--teal);color:#fff;font-size:11px;font-weight:600;vertical-align:2px;letter-spacing:.5px}
+.footer{margin:28px 0 8px;padding-top:14px;border-top:1px solid var(--line);text-align:center;color:var(--sub);font-size:12px}
+.footer .ver{font-weight:600;color:var(--ink)}
+.brand small{display:block;font-size:11px;color:var(--sub);font-weight:400;letter-spacing:1px}
+.stats{display:flex;gap:8px}
+.stat-chip{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px 14px;font-size:12px;color:var(--sub)}
+.stat-chip b{color:var(--ink);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.input-panel{padding:20px}
+.input-panel h2{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.input-panel h2 .step{width:20px;height:20px;border-radius:50%;background:var(--brand);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
+textarea,input[type=text]{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;background:#fbfaf7;color:var(--ink);font-family:inherit;transition:border .2s}
+textarea{resize:vertical;min-height:64px}
+textarea:focus,input[type=text]:focus{outline:none;border-color:var(--brand)}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12px;color:var(--sub);margin-bottom:4px}
+.hint{font-size:12px;color:var(--sub);margin-top:6px}
+.hint code{background:var(--tag);padding:1px 6px;border-radius:5px;font-size:11px}
+.btn{border:none;border-radius:10px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;transition:transform .1s,opacity .2s;font-family:inherit}
+.btn:active{transform:scale(.98)}
+.btn-primary{background:var(--brand);color:#fff}
+.btn-primary:hover{background:var(--brand-deep)}
+.btn-ghost{background:transparent;border:1px solid var(--line);color:var(--sub)}
+.btn-ghost:hover{border-color:var(--brand);color:var(--brand)}
+.btn-sm{padding:5px 12px;font-size:12px;border-radius:8px}
+.btn-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn-row .spacer{flex:1}
+.row{display:flex;gap:10px}
+.row .field{flex:1}
+/* extraction preview */
+#extract-preview{margin-top:12px;border-top:1px dashed var(--line);padding-top:14px;display:none}
+#extract-preview.visible{display:block}
+.preview-title{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--teal)}
+.preview-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.preview-grid .cell{background:#f7f4ee;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px}
+.preview-grid .cell span{display:block;font-size:11px;color:var(--sub)}
+.preview-grid .cell b{font-weight:600;font-size:13px}
+.preview-grid .cell input{width:100%;border:none;background:transparent;font-size:13px;color:var(--ink);font-weight:600;padding:0}
+.preview-grid .cell input:focus{outline:none}
+/* toolbar */
+.toolbar{display:flex;align-items:center;gap:10px;margin:24px 0 14px;flex-wrap:wrap}
+.toolbar h2{font-size:16px;font-weight:700}
+.toolbar .spacer{flex:1}
+.filter-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.chip{background:var(--tag);border:1px solid transparent;border-radius:999px;padding:4px 12px;font-size:12px;color:var(--sub);cursor:pointer;transition:all .2s}
+.chip:hover{border-color:var(--line)}
+.chip.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+.chip.empty{opacity:.6}
+/* entry cards */
+.entry{display:flex;gap:14px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.entry:last-child{border-bottom:none}
+.entry:hover{background:#fdfbf8}
+.entry .icon{width:42px;height:42px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:19px;background:var(--tag)}
+.entry .body{flex:1;min-width:0}
+.entry .top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.entry .name{font-size:15px;font-weight:700}
+.entry .type{font-size:11px;color:var(--sub);background:var(--tag);padding:1px 8px;border-radius:999px}
+.entry .meta{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px;font-size:12px;color:var(--sub)}
+.entry .meta b{color:var(--ink);font-weight:500}
+.entry .tags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.tag-chip{background:var(--tag);color:#8a6a4a;font-size:11px;padding:1px 8px;border-radius:999px;cursor:pointer}
+.tag-chip:hover{background:#f2e3d5}
+.entry .actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0;align-items:flex-end}
+.linkout{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--teal);text-decoration:none;font-weight:600}
+.linkout:hover{text-decoration:underline}
+.empty-state{text-align:center;padding:56px 20px;color:var(--sub)}
+.empty-state .big{font-size:44px;margin-bottom:12px}
+.empty-state h3{font-size:16px;color:var(--ink);margin-bottom:6px}
+/* modal */
+.modal-mask{position:fixed;inset:0;background:rgba(43,38,32,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+.modal-mask.open{display:flex}
+.modal{background:#fff;border-radius:16px;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;padding:24px}
+.modal h3{font-size:17px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.modal .close{cursor:pointer;color:var(--sub);font-size:20px;line-height:1}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid .full{grid-column:1/-1}
+/* toast */
+#toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:10px 20px;border-radius:999px;font-size:13px;opacity:0;transition:all .3s;pointer-events:none;z-index:100}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+/* responsive */
+@media(max-width:600px){
+  .preview-grid{grid-template-columns:1fr}
+  .form-grid{grid-template-columns:1fr}
+  .row{flex-direction:column}
+  .entry{flex-direction:column}
+  .entry .actions{flex-direction:row;align-items:center}
+}
+.tag-adder{display:flex;gap:6px;margin-top:8px}
+.tag-adder input{flex:1;padding:4px 10px;font-size:12px}
+/* Notion sync */
+.sync-card{margin-top:12px}
+.sync-card summary{cursor:pointer;padding:14px 18px;font-size:14px;font-weight:600;color:var(--ink);list-style:none;display:flex;align-items:center;gap:8px}
+.sync-card summary::-webkit-details-marker{display:none}
+.sync-card summary::before{content:'▸';transition:transform .2s;color:var(--sub);font-size:12px}
+.sync-card[open] summary::before{transform:rotate(90deg)}
+.sync-body{padding:14px 18px 18px;border-top:1px dashed var(--line)}
+/* type picker */
+.type-pick{display:flex;gap:6px;flex-wrap:wrap}
+.tp{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:5px 12px;font-size:12px;color:var(--sub);cursor:pointer;transition:all .2s;font-family:inherit}
+.tp:hover{border-color:var(--brand);color:var(--brand)}
+.tp.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+/* clickable address + copy */
+.addr{cursor:pointer;border-bottom:1px dashed var(--line);padding-bottom:1px}
+.addr:hover{color:var(--brand);border-color:var(--brand)}
+.copy-btn{border:none;background:var(--tag);color:var(--sub);font-size:11px;padding:2px 7px;border-radius:6px;cursor:pointer;margin-left:6px;vertical-align:1px;transition:all .2s}
+.copy-btn:hover{background:var(--brand);color:#fff}
+/* trip highlight */
+.trip-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:linear-gradient(90deg,#fdf8f3,transparent);border-radius:8px;padding:2px 2px;margin-top:4px}
+.trip-line .trip-item{font-size:12px;color:var(--ink)}
+.trip-line .trip-item.cancel{color:var(--ok);background:rgba(61,139,85,.08);border:1px dashed rgba(61,139,85,.35);border-radius:6px;padding:0 6px}
+.trip-line .trip-item b{font-weight:600}
+.trip-sep{color:var(--line);font-size:11px}
+@media print{body{background:#fff}}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="brand">
+      <div class="logo">🧭</div>
+      <div>
+        <h1>行前夹 <span class="ver-badge">v0.4</span></h1>
+        <small>TRIP CLIP · 出行前资料收集</small>
+      </div>
+    </div>
+    <div class="stats">
+      <span class="stat-chip">已收藏 <b id="stat-total">0</b></span>
+      <span class="stat-chip">待确认 <b id="stat-todo">0</b></span>
+    </div>
+  </header>
+
+  <!-- 输入面板 -->
+  <div class="card input-panel">
+    <h2><span class="step">1</span> 收集一条</h2>
+    <div class="field">
+      <label>小红书链接（可留空，仅手动录入时省略）</label>
+      <input type="text" id="in-link" placeholder="粘贴小红书分享链接，如 https://www.xiaohongshu.com/explore/xxxx 或 xhslink.com/xxxx">
+    </div>
+    <div class="field">
+      <label>帖子正文 / 笔记内容（粘贴文字即可自动提取店名、地址、营业时间、人均）</label>
+      <textarea id="in-text" placeholder="示例：
+XX 日料店打卡！
+地址：北京市朝阳区三里屯路 11 号
+营业时间：11:00-22:00
+人均：¥120
+强烈推荐他家的刺身拼盘……"></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="extractAndAdd()">✨ 智能提取并保存</button>
+      <button class="btn btn-ghost" onclick="openModal('manual')">＋ 手动录入</button>
+      <span class="spacer"></span>
+    </div>
+    <div class="hint">💡 提取支持常见写法：<code>地址：</code> <code>营业时间：</code> <code>人均：</code> <code>店名：</code>，以及"📍 / 🕐 / 💰"emoji 形式。提取结果可再编辑。</div>
+  </div>
+
+  <!-- 列表 -->
+  <div class="toolbar">
+    <h2>我的收藏</h2>
+    <span class="spacer"></span>
+    <button class="btn btn-ghost btn-sm" onclick="exportMD()">导出 Markdown</button>
+    <button class="btn btn-ghost btn-sm" onclick="exportCSV()">导出 CSV</button>
+    <button class="btn btn-primary btn-sm" id="btn-sync" onclick="syncToNotion()">↗ 同步 Notion</button>
+    <button class="btn btn-ghost btn-sm" onclick="clearAll()">清空</button>
+  </div>
+  <div class="filter-chips" id="type-chips"></div>
+  <div class="filter-chips" id="filter-chips"></div>
+  <div class="card" id="entry-list"></div>
+
+  <!-- Notion 同步设置（可选） -->
+  <details class="card sync-card" id="sync-panel">
+    <summary><span>Notion 同步设置（可选）</span></summary>
+    <div class="sync-body">
+      <div class="field">
+        <label>同步服务地址（Cloudflare Worker URL）</label>
+        <input type="text" id="sync-url" placeholder="https://tripclip-sync.你的账号.workers.dev" autocomplete="off">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost btn-sm" onclick="saveSyncUrl()">保存地址</button>
+        <span class="hint" id="sync-status" style="margin:0"></span>
+      </div>
+      <div class="hint">💡 同步走 Cloudflare Worker 中转，Notion 的 token 存在服务端、不暴露给前端。重复同步按「来源ID」去重，不会产生重复条目。部署步骤见 <code>DEPLOY.md</code>。</div>
+    </div>
+  </details>
+</div>
+
+<!-- 编辑弹窗 -->
+<div class="modal-mask" id="modal-edit">
+  <div class="modal">
+    <h3>编辑条目 <span class="close" onclick="closeModal('edit')">✕</span></h3>
+    <div class="form-grid">
+      <div class="field full"><label>名称 *</label><input type="text" id="e-name"></div>
+      <div class="field"><label>类型</label><input type="text" id="e-type" placeholder="机票 / 火车 / 酒店 / 餐厅…"></div>
+      <div class="field"><label>人均</label><input type="text" id="e-price" placeholder="¥120"></div>
+      <div class="field"><label>日期 / 时间</label><input type="text" id="e-datetime" placeholder="08-20 09:15"></div>
+      <div class="field"><label>编号 / 代码</label><input type="text" id="e-code" placeholder="CA981 / G1234"></div>
+      <div class="field full"><label>出发 — 到达</label><input type="text" id="e-fromto" placeholder="上海浦东T2 → 东京成田T1"></div>
+      <div class="field full"><label>地址</label><input type="text" id="e-address"></div>
+      <div class="field full"><label>营业时间</label><input type="text" id="e-hours"></div>
+      <div class="field"><label>备注 / 订单号</label><input type="text" id="e-extra"></div>
+      <div class="field"><label>免费退订截止 / 取消说明</label><input type="text" id="e-cancel" placeholder="如：08-18 前可免费取消"></div>
+      <div class="field"><label>备注 / 小贴士</label><input type="text" id="e-note"></div>
+      <div class="field full"><label>标签（逗号分隔）</label><input type="text" id="e-tags" placeholder="大阪,美食,第一天"></div>
+      <div class="field full"><label>原文链接</label><input type="text" id="e-link"></div>
+    </div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn btn-primary" onclick="saveEdit()">保存</button>
+      <button class="btn btn-ghost" onclick="closeModal('edit')">取消</button>
+      <span class="spacer"></span>
+      <button class="btn btn-ghost" style="color:var(--danger)" onclick="deleteEntry(editingId)">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- 手动录入弹窗 -->
+<div class="modal-mask" id="modal-manual">
+  <div class="modal">
+    <h3>手动录入 <span class="close" onclick="closeModal('manual')">✕</span></h3>
+    <div class="form-grid">
+      <div class="field full"><label>类型</label>
+        <div class="type-pick" id="m-type-pick">
+          <button type="button" class="tp active" data-type="其他">📦 其他</button>
+          <button type="button" class="tp" data-type="机票">✈️ 机票</button>
+          <button type="button" class="tp" data-type="火车">🚄 火车</button>
+          <button type="button" class="tp" data-type="酒店">🏨 酒店</button>
+          <button type="button" class="tp" data-type="门票">🎫 门票</button>
+          <button type="button" class="tp" data-type="餐厅">🍜 餐厅</button>
+          <button type="button" class="tp" data-type="景点">⛰️ 景点</button>
+        </div>
+        <input type="hidden" id="m-type">
+      </div>
+      <div class="field full"><label>名称 *</label><input type="text" id="m-name" placeholder="中国国航 CA981 / 京都格兰比亚酒店 / 高铁 G1234"></div>
+      <div class="field"><label id="m-lbl-datetime">日期 / 时间（可选）</label><input type="text" id="m-datetime" placeholder="08-20 09:15"></div>
+      <div class="field"><label id="m-lbl-code">编号 / 代码（可选）</label><input type="text" id="m-code" placeholder="CA981 / G1234"></div>
+      <div class="field full"><label id="m-lbl-fromto">出发 — 到达（可选）</label><input type="text" id="m-fromto" placeholder="上海浦东T2 → 东京成田T1"></div>
+      <div class="field full"><label>地址（可复制）</label><input type="text" id="m-address" placeholder="点保存后，列表里点地址即可复制"></div>
+      <div class="field"><label id="m-lbl-extra">备注 / 订单号（可选）</label><input type="text" id="m-extra" placeholder="订单号、座位号、确认号…"></div>
+      <div class="field"><label id="m-lbl-cancel">免费退订截止（可选）</label><input type="text" id="m-cancel" placeholder="如：08-18 前可免费取消"></div>
+      <div class="field"><label>人均/价格</label><input type="text" id="m-price"></div>
+      <div class="field full"><label>标签（逗号分隔）</label><input type="text" id="m-tags" placeholder="大阪,酒店,已预订"></div>
+      <div class="field full"><label>来源链接（可选）</label><input type="text" id="m-link" placeholder="https://…"></div>
+    </div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn btn-primary" onclick="saveManual()">保存</button>
+      <button class="btn btn-ghost" onclick="closeModal('manual')">取消</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ============ 数据层（localStorage 持久化） ============
+const DB_KEY = 'tripclip.entries.v1';
+let entries = load();
+
+function load(){
+  try{ return JSON.parse(localStorage.getItem(DB_KEY)) || []; }
+  catch(e){ return []; }
+}
+function save(){
+  localStorage.setItem(DB_KEY, JSON.stringify(entries));
+  render();
+}
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+// ============ 行程类型元数据 ============
+const TYPE_META={
+  '机票': {icon:'✈️', dateTime:'起飞时间', fromTo:'出发地 → 目的地', code:'航班号', extra:'订单号 / 座位号', cancel:'免费退改截止'},
+  '火车': {icon:'🚄', dateTime:'发车时间', fromTo:'出发站 → 到达站', code:'车次', extra:'座位号 / 订单号', cancel:'免费退改截止'},
+  '酒店': {icon:'🏨', dateTime:'入住 — 退房', fromTo:'房型', code:'酒店电话', extra:'订单号 / 确认号', cancel:'免费退订截止'},
+  '门票': {icon:'🎫', dateTime:'使用日期', fromTo:'场馆 / 地点', code:'票号', extra:'订单号 / 入场信息', cancel:'免费退订截止'},
+  '餐厅': {icon:'🍜', dateTime:'预约时间', fromTo:'位置', code:'电话', extra:'推荐菜', cancel:'取消政策'},
+  '景点': {icon:'⛰️', dateTime:'开放 / 预约时间', fromTo:'区域', code:'票价', extra:'注意事项', cancel:'退订 / 取消说明'},
+  '其他': {icon:'📦', dateTime:'日期 / 时间', fromTo:'出发 — 到达', code:'编号 / 代码', extra:'备注 / 订单号', cancel:'退订 / 取消说明'},
+  '默认': {icon:'📍', dateTime:'日期 / 时间', fromTo:'出发 — 到达', code:'编号 / 代码', extra:'备注 / 订单号', cancel:'退订 / 取消说明'}
+};
+function typeMeta(t){ return TYPE_META[t] || TYPE_META['默认']; }
+function typeIcon(t){ return typeMeta(t).icon; }
+
+// 手动录入弹窗：类型快捷选择
+function bindTypePick(pickId, typeInputId, metaPrefix){
+  const box=document.getElementById(pickId);
+  if(!box) return;
+  box.querySelectorAll('.tp').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      box.querySelectorAll('.tp').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const t=btn.getAttribute('data-type');
+      document.getElementById(typeInputId).value = t==='其他' ? '' : t;
+      const meta=typeMeta(t);
+      const keyMap={datetime:'dateTime',fromto:'fromTo',code:'code',extra:'extra',cancel:'cancel'};
+      const lbl=id=>{ const el=document.getElementById(metaPrefix+'-lbl-'+id); if(el) el.textContent=meta[keyMap[id]]||'编号 / 代码'; };
+      ['datetime','fromto','code','extra','cancel'].forEach(lbl);
+    });
+  });
+}
+function setManualType(t){
+  const box=document.getElementById('m-type-pick');
+  const btn=[...box.querySelectorAll('.tp')].find(b=>b.getAttribute('data-type')===t) || box.querySelector('.tp[data-type="其他"]');
+  btn.click();
+}
+
+// ============ 智能提取 ============
+function extractFromText(text){
+  const r = { name:'', type:'', price:'', address:'', hours:'', note:'' };
+  if(!text) return r;
+  const lines = text.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  const pick = (patterns, defaultVal='') => {
+    for(const line of lines){
+      for(const p of patterns){
+        const m = line.match(p);
+        if(m && m[1] && m[1].trim()) return m[1].trim().replace(/[。，,；;：:]+$/,'');
+      }
+    }
+    return defaultVal;
+  };
+  r.name = pick([
+    /^(?:店名|名称|店铺|店)[：:]\s*(.+)/,
+    /^(?:【|\[)(.+?)(?:】|\])(?:打卡|探店|分享)?/,
+    /^(.+?(?:店|馆|居酒屋|咖啡|餐厅|甜品|博物馆|美术馆|寺|公园|楼|屋|堂|社|汤|所|站|面|吧|舍|山|谷|滩|岛))[ \t]*(?:打卡|探店|分享|攻略|必去|！|!|。)*$/
+  ]);
+  r.type = pick([/^(?:类型|分类|类别)[：:]\s*(.+)/]);
+  r.price = pick([/^(?:人均|价格|花费)[：: ]\s*(.+)/, /(?:人均|价格|花费)[：: ]\s*(.+)/, /^人均\s*(.+)/]);
+  r.address = pick([
+    /^(?:地址|位置|📍|坐标)[：:]\s*(.+)/,
+    /📍\s*(.+)/,
+    /^(?:地址|位置)[：:]\s*(.+)/,
+    /([\u4e00-\u9fa5]{2,}(?:市|区|县|路|街|道|镇|乡|号|站|机场|港|区)[^\s，。]{0,20})/
+  ]);
+  r.hours = pick([
+    /^(?:营业时间|时间|🕐)[：:]\s*(.+)/,
+    /🕐\s*(.+)/,
+    /(?:营业时间)[：:]\s*(.+)/,
+    /(\d{1,2}[:：]\d{2}\s*[-~至]\s*\d{1,2}[:：]\d{2}(?:\s*[^，。\n]{0,10})?)/,
+    /(周[一二三四五六日天]|星期[一二三四五六日天])[^，。\n]{0,15}/
+  ]);
+  r.note = lines.find(l=>/推荐|必点|攻略|Tips|小贴士|注意|建议/.test(l)) || '';
+  return r;
+}
+
+// 从链接猜类型与名称
+function guessFromLink(link){
+  let type='';
+  if(/酒店|hotel|booking|agoda|airbnb|携程|飞猪/i.test(link)) type='酒店';
+  else if(/机票|flight|航空/i.test(link)) type='机票';
+  else if(/xiaohongshu|xhslink/i.test(link)) type='小红书';
+  return type;
+}
+
+// ============ 主流程：提取并保存 ============
+function extractAndAdd(){
+  const link = document.getElementById('in-link').value.trim();
+  const text = document.getElementById('in-text').value.trim();
+  if(!link && !text){ toast('先粘贴链接或正文内容'); return; }
+  const r = extractFromText(text);
+  const type = r.type || guessFromLink(link);
+  const entry = {
+    id: uid(), name: r.name || '未命名地点', type, price:r.price, address:r.address,
+    hours:r.hours, note:r.note, tags:[], link, source:'extract',
+    dateTime:'', code:'', fromTo:'', extra:'', cancel:'',
+    createdAt: Date.now(), pending: !!(link && !r.address)
+  };
+  entries.unshift(entry);
+  save();
+  document.getElementById('in-link').value='';
+  document.getElementById('in-text').value='';
+  toast(r.name ? '已提取并保存：「' + r.name + '」' : '已保存（未识别到名称，可编辑补全）');
+}
+
+// ============ 弹窗管理 ============
+let editingId=null;
+function openModal(kind){
+  if(kind==='edit'){
+    document.getElementById('modal-edit').classList.add('open');
+  }else{
+    ['m-name','m-type','m-price','m-address','m-datetime','m-code','m-fromto','m-extra','m-cancel','m-tags','m-link'].forEach(i=>document.getElementById(i).value='');
+    setManualType('其他');
+    document.getElementById('modal-manual').classList.add('open');
+  }
+}
+function closeModal(kind){
+  document.getElementById(kind==='edit'?'modal-edit':'modal-manual').classList.remove('open');
+}
+function editEntry(id){
+  const e = entries.find(x=>x.id===id); if(!e) return;
+  editingId=id;
+  document.getElementById('e-name').value=e.name;
+  document.getElementById('e-type').value=e.type;
+  document.getElementById('e-price').value=e.price;
+  document.getElementById('e-address').value=e.address;
+  document.getElementById('e-datetime').value=e.dateTime||'';
+  document.getElementById('e-code').value=e.code||'';
+  document.getElementById('e-fromto').value=e.fromTo||'';
+  document.getElementById('e-extra').value=e.extra||'';
+  document.getElementById('e-cancel').value=e.cancel||'';
+  document.getElementById('e-hours').value=e.hours;
+  document.getElementById('e-note').value=e.note;
+  document.getElementById('e-tags').value=e.tags.join(',');
+  document.getElementById('e-link').value=e.link||'';
+  openModal('edit');
+}
+function saveEdit(){
+  const e = entries.find(x=>x.id===editingId); if(!e) return;
+  e.name=document.getElementById('e-name').value.trim()||'未命名地点';
+  e.type=document.getElementById('e-type').value.trim();
+  e.price=document.getElementById('e-price').value.trim();
+  e.address=document.getElementById('e-address').value.trim();
+  e.dateTime=document.getElementById('e-datetime').value.trim();
+  e.code=document.getElementById('e-code').value.trim();
+  e.fromTo=document.getElementById('e-fromto').value.trim();
+  e.extra=document.getElementById('e-extra').value.trim();
+  e.cancel=document.getElementById('e-cancel').value.trim();
+  e.hours=document.getElementById('e-hours').value.trim();
+  e.note=document.getElementById('e-note').value.trim();
+  e.tags=parseTags(document.getElementById('e-tags').value);
+  e.link=document.getElementById('e-link').value.trim();
+  e.pending=false;
+  save(); closeModal('edit'); toast('已保存');
+}
+function saveManual(){
+  const name=document.getElementById('m-name').value.trim();
+  if(!name){ toast('名称不能为空'); return; }
+  const entry={
+    id:uid(), name,
+    type:document.getElementById('m-type').value.trim(),
+    price:document.getElementById('m-price').value.trim(),
+    address:document.getElementById('m-address').value.trim(),
+    dateTime:document.getElementById('m-datetime').value.trim(),
+    code:document.getElementById('m-code').value.trim(),
+    fromTo:document.getElementById('m-fromto').value.trim(),
+    extra:document.getElementById('m-extra').value.trim(),
+    cancel:document.getElementById('m-cancel').value.trim(),
+    hours:'', note:'',
+    tags:parseTags(document.getElementById('m-tags').value),
+    link:document.getElementById('m-link').value.trim(),
+    source:'manual', createdAt:Date.now(), pending:false
+  };
+  entries.unshift(entry);
+  save(); closeModal('manual'); toast('已添加「'+name+'」');
+}
+function deleteEntry(id){
+  if(!confirm('确定删除这条记录？')) return;
+  entries=entries.filter(x=>x.id!==id);
+  closeModal('edit'); save(); toast('已删除');
+}
+function clearAll(){
+  if(!confirm('确定清空全部 '+entries.length+' 条收藏？此操作不可恢复！')) return;
+  entries=[]; save(); toast('已清空');
+}
+function parseTags(s){ return s.split(/[,，、\s]+/).map(t=>t.trim()).filter(Boolean); }
+
+// ============ 渲染 ============
+let activeTag='';
+let activeType='';
+function allTags(){
+  const set=new Set();
+  entries.forEach(e=>e.tags.forEach(t=>set.add(t)));
+  return [...set];
+}
+function renderTypeChips(){
+  const box=document.getElementById('type-chips');
+  if(!box) return;
+  const types=[...new Set(entries.map(e=>e.type).filter(Boolean))];
+  const order=['机票','火车','酒店','门票','餐厅','景点','购物','咖啡','博物馆','美术馆','酒吧','甜品'];
+  const rank=t=>{ const i=order.indexOf(t); return i===-1?99:i; };
+  types.sort((a,b)=>rank(a)-rank(b));
+  let html=`<span class="chip${activeType===''?' active':''}" data-t="">全部类型</span>`;
+  types.forEach(t=>{ html+=`<span class="chip${activeType===t?' active':''}" data-t="${esc(t)}">${typeIcon(t)} ${esc(t)}</span>`; });
+  box.innerHTML=html;
+  box.querySelectorAll('.chip').forEach(c=>{
+    c.addEventListener('click',()=>{ activeType=c.getAttribute('data-t'); render(); });
+  });
+}
+function renderFilters(){
+  const tags=allTags();
+  const box=document.getElementById('filter-chips');
+  box.innerHTML='';
+  const allChip=document.createElement('span');
+  allChip.className='chip'+(activeTag===''?' active':'');
+  allChip.textContent='全部 ('+entries.length+')';
+  allChip.onclick=()=>{activeTag='';render();};
+  box.appendChild(allChip);
+  if(tags.length===0){
+    const c=document.createElement('span');
+    c.className='chip empty'; c.textContent='添加标签即可按区域/日期筛选';
+    box.appendChild(c);
+  }
+  tags.forEach(t=>{
+    const c=document.createElement('span');
+    c.className='chip'+(activeTag===t?' active':'');
+    c.textContent=t;
+    c.onclick=()=>{activeTag=activeTag===t?'':t;render();};
+    box.appendChild(c);
+  });
+}
+function mapsUrl(e){
+  const q=[e.name,e.address].filter(Boolean).join(' ');
+  return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q);
+}
+function render(){
+  renderTypeChips();
+  renderFilters();
+  const list=document.getElementById('entry-list');
+  const shown=entries.filter(e=>(!activeType||e.type===activeType)&&(!activeTag||e.tags.includes(activeTag)));
+  document.getElementById('stat-total').textContent=entries.length;
+  document.getElementById('stat-todo').textContent=entries.filter(e=>e.pending).length;
+  if(shown.length===0){
+    list.innerHTML='<div class="empty-state"><div class="big">🧳</div><h3>'+(entries.length===0?'还没有收藏':'没有匹配的条目')+'</h3><p>'+(entries.length===0?'粘贴一条小红书链接或正文，开始你的行程收集':'换个类型或标签试试')+'</p></div>';
+    return;
+  }
+  const icons={餐厅:'🍜',美食:'🍜',咖啡:'☕',博物馆:'🏛️',美术馆:'🖼️',景点:'⛰️',酒店:'🏨',机票:'✈️',购物:'🛍️',酒吧:'🍸',甜品:'🍰',默认:'📍'};
+  list.innerHTML=shown.map(e=>{
+    const icon=typeIcon(e.type)==='📍'?(icons[e.type]||icons['默认']):typeIcon(e.type);
+    const mapHref=mapsUrl(e);
+    const tagHtml=e.tags.map(t=>`<span class="tag-chip" onclick="jumpTag('${esc(t)}')">#${esc(t)}</span>`).join('');
+    const pendingHtml=e.pending?'<span style="font-size:11px;color:var(--warn);margin-left:6px">⚠ 待补地址</span>':'';
+    const tripItems=[];
+    if(e.dateTime) tripItems.push(`<span class="trip-item">🕐 <b>${esc(e.dateTime)}</b></span>`);
+    if(e.fromTo) tripItems.push(`<span class="trip-item">🔁 <b>${esc(e.fromTo)}</b></span>`);
+    if(e.code) tripItems.push(`<span class="trip-item">⌗ <b>${esc(e.code)}</b></span>`);
+    if(e.extra) tripItems.push(`<span class="trip-item">📋 <b>${esc(e.extra)}</b></span>`);
+    if(e.cancel) tripItems.push(`<span class="trip-item cancel">🔄 <b>${esc(e.cancel)}</b></span>`);
+    const tripHtml=tripItems.length?`<div class="trip-line">${tripItems.join('<span class="trip-sep">·</span>')}</div>`:'';
+    const addrHtml=e.address
+      ?`<span>📍 <b class="addr" title="点击复制地址" data-copy="${esc(e.address)}">${esc(e.address)}</b><button class="copy-btn" data-copy="${esc(e.address)}" title="复制地址">📋 复制</button></span>`
+      :'';
+    return `<div class="entry">
+      <div class="icon">${icon}</div>
+      <div class="body">
+        <div class="top"><span class="name">${esc(e.name)}</span>${e.type?`<span class="type">${esc(e.type)}</span>`:''}${pendingHtml}</div>
+        ${tripHtml}
+        <div class="meta">
+          ${addrHtml}
+          ${e.hours?`<span>🕐 <b>${esc(e.hours)}</b></span>`:''}
+          ${e.price?`<span>💰 <b>${esc(e.price)}</b></span>`:''}
+        </div>
+        ${e.note?`<div class="meta" style="margin-top:4px"><span>💬 ${esc(e.note)}</span></div>`:''}
+        ${tagHtml?`<div class="tags">${tagHtml}</div>`:''}
+      </div>
+      <div class="actions">
+        <a class="linkout" href="${mapHref}" target="_blank" rel="noopener">🗺 地图</a>
+        ${e.link?`<a class="linkout" href="${esc(e.link)}" target="_blank" rel="noopener">🔗 原文</a>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="editEntry('${e.id}')">编辑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function jumpTag(t){ activeTag=t; render(); }
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ============ 复制到剪贴板 ============
+function copyText(text){
+  if(!text){ toast('没有可复制的地址'); return; }
+  const done=()=>toast('已复制：'+text);
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text,done));
+  }else{
+    fallbackCopy(text,done);
+  }
+}
+function fallbackCopy(text,done){
+  const ta=document.createElement('textarea');
+  ta.value=text; ta.setAttribute('readonly','');
+  ta.style.cssText='position:fixed;top:-999px;left:0;opacity:0';
+  document.body.appendChild(ta);
+  ta.select();
+  try{ document.execCommand('copy'); done(); }catch(e){ toast('复制失败，请手动选中地址复制'); }
+  document.body.removeChild(ta);
+}
+
+// ============ 导出 ============
+function tripFieldsMD(e){
+  let s='';
+  if(e.dateTime) s+=`  - 时间：${e.dateTime}\n`;
+  if(e.fromTo) s+=`  - 行程：${e.fromTo}\n`;
+  if(e.code) s+=`  - 编号：${e.code}\n`;
+  if(e.extra) s+=`  - 订单/备注：${e.extra}\n`;
+  if(e.cancel) s+=`  - 免费退订：${e.cancel}\n`;
+  return s;
+}
+function exportMD(){
+  if(entries.length===0){ toast('还没有可导出的内容'); return; }
+  const byTag={};
+  entries.forEach(e=>{ (e.tags.length?e.tags:['未分组']).forEach(t=>{ (byTag[t]=byTag[t]||[]).push(e); }); });
+  let md='# 行前夹 · 出行收藏\n\n> 导出时间：'+new Date().toLocaleString('zh-CN')+'（行前夹 '+VERSION+'）\n\n';
+  Object.keys(byTag).sort().forEach(t=>{
+    md+='## '+t+'\n\n';
+    byTag[t].forEach(e=>{
+      md+=`- **${e.name}**${e.type?'（'+e.type+'）':''}\n`;
+      md+=tripFieldsMD(e);
+      if(e.address) md+=`  - 地址：${e.address}\n`;
+      if(e.hours) md+=`  - 营业时间：${e.hours}\n`;
+      if(e.price) md+=`  - 人均：${e.price}\n`;
+      if(e.note) md+=`  - 备注：${e.note}\n`;
+      if(e.link) md+=`  - 原文：${e.link}\n`;
+    });
+    md+='\n';
+  });
+  download('tripclip-'+dateStamp()+'.md', md, 'text/markdown');
+  toast('已导出 Markdown');
+}
+function exportCSV(){
+  if(entries.length===0){ toast('还没有可导出的内容'); return; }
+  const heads=['名称','类型','时间','行程','编号','订单/备注','免费退订','地址','营业时间','人均','标签','备注','原文链接'];
+  const rows=entries.map(e=>[e.name,e.type,e.dateTime,e.fromTo,e.code,e.extra,e.cancel,e.address,e.hours,e.price,e.tags.join(' / '),e.note,e.link]
+    .map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(','));
+  download('tripclip-'+dateStamp()+'.csv','\ufeff'+heads.join(',')+'\n'+rows.join('\n'),'text/csv');
+  toast('已导出 CSV');
+}
+function dateStamp(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function download(name,content,mime){
+  const blob=new Blob([content],{type:mime});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+// ============ Notion 同步（经 Cloudflare Worker 中转） ============
+const SYNC_KEY='tripclip.syncUrl.v1';
+function getSyncUrl(){ try{ return localStorage.getItem(SYNC_KEY)||''; }catch(e){ return ''; } }
+function saveSyncUrl(){
+  const v=document.getElementById('sync-url').value.trim();
+  try{ localStorage.setItem(SYNC_KEY,v); }catch(e){}
+  toast(v?'同步地址已保存':'已清除同步地址');
+  const st=document.getElementById('sync-status');
+  if(st) st.textContent='';
+}
+function syncToNotion(){
+  const url=getSyncUrl();
+  if(!url){ toast('请先展开「Notion 同步设置」保存同步地址'); return; }
+  if(entries.length===0){ toast('还没有可同步的条目'); return; }
+  const btn=document.getElementById('btn-sync');
+  const old=btn.textContent;
+  btn.disabled=true; btn.textContent='同步中…';
+  fetch(url,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({entries})
+  }).then(async res=>{
+    const data=await res.json().catch(()=>({error:'响应解析失败'}));
+    if(!res.ok) throw new Error(data.error||('HTTP '+res.status));
+    const msg='✓ 新建 '+data.created+' 条'+(data.skipped>0?'，跳过 '+data.skipped+' 条':'')+(data.errors&&data.errors.length?'，失败 '+data.errors.length+' 条':'');
+    const st=document.getElementById('sync-status');
+    if(st) st.textContent=msg;
+    toast(msg);
+  }).catch(err=>{
+    const msg='✗ 同步失败：'+(err.message||'未知错误');
+    const st=document.getElementById('sync-status');
+    if(st) st.textContent=msg;
+    toast(msg);
+  }).finally(()=>{
+    btn.disabled=false; btn.textContent=old;
+  });
+}
+
+// ============ Toast ============
+let toastTimer;
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+// ============ 初始化 ============
+const VERSION='v0.4';
+bindTypePick('m-type-pick','m-type','m');
+// 地址复制：事件委托（data-copy 属性触发）
+document.getElementById('entry-list').addEventListener('click',function(ev){
+  const el=ev.target.closest('[data-copy]');
+  if(el) copyText(el.getAttribute('data-copy'));
+});
+document.getElementById('in-text').addEventListener('input',function(){
+  // 实时预览（可选体验）
+});
+document.getElementById('sync-url').value=getSyncUrl();
+render();
+</script>
+<div class="footer">行前夹 <span class="ver">v0.4</span> · 纯本地工具，数据存于浏览器 · 建议定期导出备份或同步到 Notion</div>
+</body>
+</html>
