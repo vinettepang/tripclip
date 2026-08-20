@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>行前夹 TripClip v0.6.2 · 出行前资料收集</title>
+<title>行前夹 TripClip v0.6.3 · 出行前资料收集</title>
 <script src="vendor/supabase.min.js"></script>
 <style>
 :root{
@@ -152,7 +152,7 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
     <div class="brand">
       <div class="logo">🧭</div>
       <div>
-        <h1>行前夹 <span class="ver-badge">v0.6.2</span></h1>
+        <h1>行前夹 <span class="ver-badge">v0.6.3</span></h1>
         <small>TRIP CLIP · 出行前资料收集</small>
       </div>
     </div>
@@ -193,11 +193,12 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
 复制此信息，打开小红书App即可看到"></textarea>
     </div>
     <div class="btn-row">
-      <button class="btn btn-primary" onclick="extractAndAdd()">✨ 智能提取并保存</button>
+      <button class="btn btn-primary" id="btn-extract" onclick="extractAndAdd()">✨ 智能提取</button>
       <button class="btn btn-ghost" onclick="openModal('manual')">＋ 手动录入</button>
       <span class="spacer"></span>
+      <button class="btn btn-link btn-sm" onclick="openModal('ai-set')" title="配置 AI 后，口语化文案也能提取（默认智谱免费模型）">⚙ AI 设置</button>
     </div>
-    <div class="hint">💡 小红书 App 点「分享」→ 直接粘贴到这里，链接和正文自动拆分。<code>地址：</code> <code>营业时间：</code> <code>人均：</code> 及 📍 / 🕐 / 💰 emoji 形式都能识别。结果可再编辑。</div>
+    <div class="hint">💡 小红书 App 点「分享」→ 直接粘贴到这里，链接和正文自动拆分。<code>地址：</code> <code>营业时间：</code> <code>人均：</code> 及 📍 / 🕐 / 💰 emoji 形式都能识别。配置 <b>⚙ AI</b> 后，即使写的是「两个人吃了两百多」也能自动理解并提取，识别率大幅提升。提取结果会先弹出预览，确认后保存。</div>
   </div>
 
   <!-- 列表 -->
@@ -272,6 +273,53 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
       <button class="btn btn-ghost" onclick="closeModal('reset-pass')">取消</button>
     </div>
     <div class="hint" id="rp-hint"></div>
+  </div>
+</div>
+
+<!-- AI 提取设置弹窗 -->
+<div class="modal-mask" id="modal-ai-set">
+  <div class="modal" style="max-width:460px">
+    <h3>AI 提取设置 <span class="close" onclick="closeModal('ai-set')">✕</span></h3>
+    <div class="hint" style="margin-top:0">配置后「智能提取」会用 AI 理解口语化文案（如「两个人吃了两百多」→ 人均约 100），识别率大幅提升。默认指向 <b>智谱免费模型 glm-4-flash</b>，只需填 Key、零成本；也可换任意 OpenAI 兼容接口（DeepSeek / 通义等）。</div>
+    <div class="field">
+      <label>API 地址</label>
+      <input type="text" id="ai-endpoint" placeholder="https://open.bigmodel.cn/api/paas/v4/chat/completions" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>API Key</label>
+      <input type="password" id="ai-key" placeholder="智谱：open.bigmodel.cn 注册 → API Keys（glm-4-flash 免费）" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>模型名</label>
+      <input type="text" id="ai-model" placeholder="glm-4-flash" autocomplete="off">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveAIConfig()">保存</button>
+      <button class="btn btn-ghost" onclick="testAIConnection()">测试连接</button>
+      <span class="spacer"></span>
+      <button class="btn btn-ghost" onclick="closeModal('ai-set')">取消</button>
+    </div>
+    <div class="hint" id="ai-set-state"></div>
+  </div>
+</div>
+
+<!-- 提取预览弹窗（规则 / AI 提取共用，确认后保存） -->
+<div class="modal-mask" id="modal-preview">
+  <div class="modal">
+    <h3>提取结果 <span class="close" onclick="closeModal('preview')">✕</span><span class="hint" id="pv-source" style="margin-left:8px"></span></h3>
+    <div class="form-grid">
+      <div class="field full"><label>名称 *</label><input type="text" id="pv-name"></div>
+      <div class="field"><label>类型</label><input type="text" id="pv-type" placeholder="餐厅 / 景点 / 酒店…"></div>
+      <div class="field"><label>人均 / 价格</label><input type="text" id="pv-price"></div>
+      <div class="field full"><label>地址</label><input type="text" id="pv-address"></div>
+      <div class="field full"><label>营业 / 开放时间</label><input type="text" id="pv-hours"></div>
+      <div class="field full"><label>备注 / 推荐</label><input type="text" id="pv-note"></div>
+      <div class="field full"><label>标签（逗号分隔）</label><input type="text" id="pv-tags" placeholder="大阪,美食,第一天"></div>
+    </div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn btn-primary" onclick="savePreview()">确认保存</button>
+      <button class="btn btn-ghost" onclick="closeModal('preview')">取消</button>
+    </div>
   </div>
 </div>
 
@@ -688,6 +736,80 @@ function setManualType(t){
   btn.click();
 }
 
+// ============ AI 智能提取（OpenAI 兼容接口，默认智谱免费模型） ============
+const AI_CFG_KEY='tripclip.ai.v1';
+const DEFAULT_AI_ENDPOINT='https://open.bigmodel.cn/api/paas/v4/chat/completions';
+const DEFAULT_AI_MODEL='glm-4-flash';
+const AI_SYSTEM_PROMPT='你是一名旅行信息整理助手。用户给你一段小红书笔记（种草文案/攻略/酒店餐厅景点介绍），请提取结构化信息，只输出一个 JSON 对象（不要 markdown 代码块、不要任何解释文字），字段：{"name":"店名或地点名称","type":"餐厅|景点|酒店|机票|火车|门票|其他","price":"人均价格，如：人均¥120/免费","address":"尽量完整的地址或位置描述","hours":"营业/开放时间","note":"推荐菜、亮点、注意事项等要点","tags":["1-3个简短标签"]}。规则：1. name 必须有，无法确定时给最可能的名称（如标题中的主体）；2. 文本没提到的字段留空字符串，绝不编造；3. 口语化信息（如"两个人吃了两百多"→"人均约100"、"在新宿站旁"→"新宿站附近"）转换成简洁中文描述；4. type 只能取给定枚举之一。';
+function getAIConfig(){
+  try{
+    const c=JSON.parse(localStorage.getItem(AI_CFG_KEY));
+    if(c && c.key) return {endpoint:c.endpoint||DEFAULT_AI_ENDPOINT, key:c.key, model:c.model||DEFAULT_AI_MODEL};
+  }catch(e){}
+  return null;
+}
+function saveAIConfig(){
+  const endpoint=document.getElementById('ai-endpoint').value.trim();
+  const key=document.getElementById('ai-key').value.trim();
+  const model=document.getElementById('ai-model').value.trim();
+  if(!key){ toast('API Key 不能为空'); return; }
+  const cfg={endpoint:endpoint||DEFAULT_AI_ENDPOINT, key, model:model||DEFAULT_AI_MODEL};
+  try{ localStorage.setItem(AI_CFG_KEY, JSON.stringify(cfg)); }catch(e){}
+  const st=document.getElementById('ai-set-state');
+  if(st) st.textContent='✓ 已保存。可点「测试连接」验证，或关闭后直接用「智能提取」。';
+  toast('AI 配置已保存');
+}
+async function testAIConnection(){
+  const cfg=getAIConfig();
+  if(!cfg){ toast('请先点「保存」'); return; }
+  const st=document.getElementById('ai-set-state');
+  if(st) st.textContent='正在测试连接…';
+  try{
+    const reply=await callLLM(cfg,'请只回复两个字：成功');
+    if(st) st.textContent='✓ 连接成功，模型回复：「'+String(reply).slice(0,30)+'」';
+    toast('AI 连接成功');
+  }catch(e){
+    if(st) st.textContent='✗ 连接失败：'+(e.message||'网络错误')+'（可换 DeepSeek / 通义等兼容接口）';
+    toast('AI 连接失败');
+  }
+}
+async function callLLM(cfg, userText){
+  const res=await fetch(cfg.endpoint, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.key},
+    body:JSON.stringify({ model:cfg.model, temperature:0.1, messages:[
+      {role:'system', content:AI_SYSTEM_PROMPT},
+      {role:'user', content:userText}
+    ]})
+  });
+  if(!res.ok){
+    let msg='HTTP '+res.status;
+    try{ const t=await res.text(); if(t) msg+=' '+t.slice(0,150); }catch(e){}
+    throw new Error(msg);
+  }
+  const data=await res.json();
+  const content=(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
+  return content;
+}
+async function aiExtract(text){
+  const cfg=getAIConfig();
+  if(!cfg) throw new Error('NO_KEY');
+  const content=await callLLM(cfg, text);
+  let s=content.replace(/```(?:json)?\s*/gi,'').replace(/```/g,'').trim();
+  const a=s.indexOf('{'), b=s.lastIndexOf('}');
+  if(a<0||b<0) throw new Error('AI 返回内容无法解析');
+  const obj=JSON.parse(s.slice(a,b+1));
+  return {
+    name:String(obj.name||'').trim(),
+    type:String(obj.type||'').trim(),
+    price:String(obj.price||'').trim(),
+    address:String(obj.address||'').trim(),
+    hours:String(obj.hours||'').trim(),
+    note:String(obj.note||'').trim(),
+    tags:(Array.isArray(obj.tags)?obj.tags:[]).map(String).slice(0,5)
+  };
+}
+
 // ============ 智能提取 ============
 // 从混合文本中拆分 URL 与正文
 function parseMixedInput(raw){
@@ -731,8 +853,15 @@ function extractFromText(text){
   r.name = pick([
     /^(?:店名|名称|店铺|店)[：:]\s*(.+)/,
     /^(?:【|\[)(.+?)(?:】|\])(?:打卡|探店|分享)?/,
+    // 书名号 / 引号包住的店名
+    /^《(.+?)》/,
+    /^[「“"](.+?)[」”"]/,
     // 带竖线分隔符的标题：东京必吃｜一兰拉面 → 取后半段
     /^[^｜|│\n]+[｜|│]\s*(.+)/,
+    // 打卡 / 探店开头：打卡这家日料店 → 取「这家日料店」
+    /^(?:打卡|探访|探店)\s*(.+?)(?:$|[！!。])/,
+    // 标题以探店/打卡/攻略/分享结尾：一兰拉面探店 → 取前半段
+    /^(.+?)(?:探店|打卡|攻略|必去|之旅)(?:$|[！!。])/,
     // 以常见后缀结尾的店名
     /^(.+?(?:店|馆|居酒屋|咖啡|餐厅|甜品|博物馆|美术馆|寺|公园|楼|屋|堂|社|汤|所|站|面|吧|舍|山|谷|滩|岛|岩|洞|塔|桥|河|湖|湾|市场|百货|房|院))[ \t]*(?:打卡|探店|分享|攻略|必去|！|!|。)*$/
   ], '', nameLines);
@@ -755,6 +884,9 @@ function extractFromText(text){
     /^(?:地址|位置|📍|坐标)[：:]\s*(.+)/,
     /📍\s*(.+)/,
     /^(?:地址|位置)[：:]\s*(.+)/,
+    // 在 / 位于 xx路 / xx站 / xx区 …
+    /^(?:在|位于)(.+?)[，。！!]?$/,
+    /(?:在|位于)([\u4e00-\u9fa5A-Za-z0-9]{2,}(?:路|街|道|巷|区|町|村|站|大厦|广场|商场|中心|馆|园|公园|寺|机场|港|丁目|番|条)[^\s，。]{0,20})/,
     /([\u4e00-\u9fa5]{2,}(?:都|府|县|市|区|町|村|路|街|道|镇|乡|号|站|机场|港|区|丁目|番|条)[^\s，。]{0,30})/
   ]);
   r.hours = pick([
@@ -778,7 +910,7 @@ function guessFromLink(link){
   return type;
 }
 
-// ============ 主流程：提取并保存 ============
+// ============ 主流程：提取 → 预览确认 → 保存 ============
 function extractAndAdd(){
   const raw = document.getElementById('in-text').value.trim();
   if(!raw){ toast('先粘贴小红书分享文本或帖子正文'); return; }
@@ -788,25 +920,79 @@ function extractAndAdd(){
     toast('检测到链接但没有正文。请从小红书「分享」复制全文（含标题+描述）再粘贴');
     return;
   }
-  const r = extractFromText(text || raw);
-  const type = r.type || guessFromLink(link);
+  const content = text || raw;
+  if(getAIConfig()){
+    runAIExtract(content, link);
+  }else{
+    const r = extractFromText(content);
+    openPreview(r, link, '规则识别 · 配置 ⚙ AI 可识别口语化文案');
+  }
+}
+async function runAIExtract(content, link){
+  const btn=document.getElementById('btn-extract');
+  if(btn){ btn.disabled=true; btn.textContent='🤖 AI 提取中…'; }
+  try{
+    const r = await aiExtract(content);
+    openPreview(r, link, 'AI 识别');
+  }catch(e){
+    if(e.message==='NO_KEY'){
+      openModal('ai-set');
+      toast('请先在 AI 设置里填入 Key（默认智谱免费模型）');
+    }else{
+      console.warn('AI 提取失败，降级规则识别:', e.message);
+      const r = extractFromText(content);
+      openPreview(r, link, 'AI 提取失败，已用规则识别');
+    }
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent='✨ 智能提取'; }
+  }
+}
+
+// ============ 提取预览弹窗 ============
+let previewData=null;
+function openPreview(r, link, source){
+  previewData={ r, link, source };
+  document.getElementById('pv-name').value=r.name||'';
+  document.getElementById('pv-type').value=r.type||'';
+  document.getElementById('pv-price').value=r.price||'';
+  document.getElementById('pv-address').value=r.address||'';
+  document.getElementById('pv-hours').value=r.hours||'';
+  document.getElementById('pv-note').value=r.note||'';
+  document.getElementById('pv-tags').value=(r.tags||[]).join(',');
+  const src=document.getElementById('pv-source');
+  if(src) src.textContent=source||'';
+  document.getElementById('modal-preview').classList.add('open');
+}
+function savePreview(){
+  if(!previewData){ toast('没有待保存的提取结果'); return; }
+  const name=document.getElementById('pv-name').value.trim();
+  const type=document.getElementById('pv-type').value.trim();
+  const price=document.getElementById('pv-price').value.trim();
+  const address=document.getElementById('pv-address').value.trim();
+  const hours=document.getElementById('pv-hours').value.trim();
+  const note=document.getElementById('pv-note').value.trim();
+  const tags=document.getElementById('pv-tags').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean);
+  const link=previewData.link||'';
+  const finalType=type || guessFromLink(link);
   const entry = {
-    id: uid(), name: r.name || '未命名地点', type, price:r.price, address:r.address,
-    hours:r.hours, note:r.note, tags:[], link, source:'extract',
+    id: uid(), name: name||'未命名地点', type: finalType, price, address,
+    hours, note, tags, link, source:'extract',
     dateTime:'', code:'', fromTo:'', extra:'', cancel:'',
-    createdAt: Date.now(), pending: !!(link && !r.address)
+    createdAt: Date.now(), pending: !!(link && !address)
   };
   entries.unshift(entry);
   save(); enqueueSync({op:'insert', entry});
   document.getElementById('in-text').value='';
-  toast(r.name ? '已提取并保存：「' + r.name + '」' : '已保存（未识别到名称，可编辑补全）');
+  closeModal('preview');
+  previewData=null;
+  toast(name ? '已保存：「' + name + '」' : '已保存（名称为空，已存为「未命名地点」）');
 }
 
 // ============ 弹窗管理 ============
 let editingId=null;
 // 从重置邮件跳回：身份已确认，打开设置新密码弹窗
 function openResetPass(){ openModal('reset-pass'); }
-const MODAL_MAP={edit:'modal-edit',manual:'modal-manual',login:'modal-login','reset-pass':'modal-reset-pass'};
+const MODAL_MAP={edit:'modal-edit',manual:'modal-manual',login:'modal-login','reset-pass':'modal-reset-pass','ai-set':'modal-ai-set',preview:'modal-preview'};
 function openModal(kind){
   if(kind==='edit'){
     document.getElementById('modal-edit').classList.add('open');
@@ -817,6 +1003,16 @@ function openModal(kind){
     document.getElementById('rp-pass').value=''; document.getElementById('rp-pass2').value='';
     document.getElementById('rp-hint').textContent='';
     document.getElementById('modal-reset-pass').classList.add('open');
+  }else if(kind==='ai-set'){
+    const cfg=getAIConfig()||{endpoint:DEFAULT_AI_ENDPOINT, model:DEFAULT_AI_MODEL, key:''};
+    document.getElementById('ai-endpoint').value=cfg.endpoint||DEFAULT_AI_ENDPOINT;
+    document.getElementById('ai-key').value=cfg.key||'';
+    document.getElementById('ai-model').value=cfg.model||DEFAULT_AI_MODEL;
+    const st=document.getElementById('ai-set-state');
+    if(st) st.textContent=cfg.key?'（已配置，可修改后重新保存）':'（未配置，填 Key 后保存即可，默认智谱免费模型）';
+    document.getElementById('modal-ai-set').classList.add('open');
+  }else if(kind==='preview'){
+    document.getElementById('modal-preview').classList.add('open');
   }else{
     ['m-name','m-type','m-price','m-address','m-datetime','m-code','m-fromto','m-extra','m-cancel','m-tags','m-link'].forEach(i=>document.getElementById(i).value='');
     setManualType('其他');
@@ -1092,7 +1288,7 @@ function toast(msg){
 }
 
 // ============ 初始化 ============
-const VERSION='v0.6.2';
+const VERSION='v0.6.3';
 bindTypePick('m-type-pick','m-type','m');
 // 云同步初始化：恢复会话
 initSupabase();
@@ -1103,6 +1299,6 @@ document.getElementById('entry-list').addEventListener('click',function(ev){
 });
 render();
 </script>
-<div class="footer">行前夹 <span class="ver">v0.6.2</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
+<div class="footer">行前夹 <span class="ver">v0.6.3</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
 </body>
 </html>
