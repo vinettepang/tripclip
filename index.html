@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>行前夹 TripClip v0.7.0 · 出行前资料收集</title>
+<title>行前夹 TripClip v0.7.1 · 出行前资料收集</title>
 <script src="vendor/supabase.min.js"></script>
 <style>
 :root{
@@ -208,7 +208,7 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
     <div class="brand">
       <div class="logo">🧭</div>
       <div>
-        <h1>行前夹 <span class="ver-badge">v0.7.0</span></h1>
+        <h1>行前夹 <span class="ver-badge">v0.7.1</span></h1>
         <small>TRIP CLIP · 出行前资料收集</small>
       </div>
     </div>
@@ -449,7 +449,7 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
         <span class="trip-summary" id="trip-summary"></span>
         <span class="spacer"></span>
         <button class="btn btn-ghost btn-sm" onclick="printTrip()" title="打印成纸质行程单">🖨 打印</button>
-        <button class="btn btn-ghost btn-sm" onclick="exportTripMD()" title="导出 Markdown 行程单">⬇ 导出</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportTripMD()" title="导出 Notion 可导入的 Markdown 行程单">⬇ 导出 Notion</button>
       </div>
     </div>
     <div id="trip-sheet"></div>
@@ -1516,28 +1516,37 @@ function exportTripMD(){
   const groups=buildTripGroups();
   const picked=entries.filter(e=>e.inTrip);
   if(picked.length===0){ toast('还没有勾选的条目'); return; }
-  let md='# '+getTripName()+'\n\n> 行程单 · 共 '+picked.length+' 项 · '+new Date().toLocaleString('zh-CN')+'（行前夹 '+VERSION+'）\n\n';
+  const dayCount=groups.filter(g=>g.day).length;
+  // Notion 友好格式：H1 标题 / 引用块元信息 / H2 分日 / 待办勾选项（导入后可在 Notion 打勾）/ 缩进子行详情 / 分割线
+  let md='# 🧳 '+getTripName()+'\n\n';
+  md+='> 📅 **行程单** · 共 '+picked.length+' 项'+(dayCount?' · 覆盖 '+dayCount+' 天':'')+'\n';
+  md+='> 🕰 生成于 '+new Date().toLocaleString('zh-CN')+' · 行前夹 '+VERSION+'\n\n';
+  md+='---\n\n';
   groups.forEach(g=>{
-    md+='## '+(g.day?g.day.label:'未排期')+'\n\n';
+    const label=g.day?g.day.label:'未排期';
+    md+='## '+(g.day?'📅':'📋')+' '+label+'（'+g.items.length+' 项）\n\n';
     g.items.forEach(e=>{
       const t=sheetTime(e);
-      const timeStr=t==null?'--:--':String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
-      md+='- **'+timeStr+'** '+((e.type&&e.type!=='其他')?'('+e.type+') ':'')+'**'+e.name+'**';
-      if(e.fromTo) md+=' — '+e.fromTo;
-      md+='\n';
-      if(e.address) md+='  - 地址：'+e.address+'\n';
-      if(e.hours) md+='  - 营业时间：'+e.hours+'\n';
-      if(e.price) md+='  - 人均：'+e.price+'\n';
-      if(e.extra) md+='  - 订单/备注：'+e.extra+'\n';
-      if(e.cancel) md+='  - 免费退订：'+e.cancel+'\n';
-      if(e.note) md+='  - 备注：'+e.note+'\n';
-      md+='  - 地图：https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([e.name,e.address].filter(Boolean).join(' '))+'\n';
-      if(e.link) md+='  - 原文：'+e.link+'\n';
+      const timeStr=t==null?'':String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
+      const name=e.name.replace(/\|/g,'｜').replace(/\[/g,'（').replace(/\]/g,'）');
+      md+='- [ ] '+(timeStr?'**'+timeStr+'** · ':'')+name+((e.type&&e.type!=='其他')?' `'+e.type+'`':'')+'\n';
+      const subs=[];
+      if(e.fromTo) subs.push('🚄 行程：'+e.fromTo);
+      if(e.code) subs.push('🎫 编号：'+e.code);
+      if(e.address) subs.push('📍 地址：'+e.address);
+      if(e.hours) subs.push('🕐 营业：'+e.hours);
+      if(e.price) subs.push('💰 人均：'+e.price);
+      if(e.extra) subs.push('🧾 订单：'+e.extra);
+      if(e.cancel) subs.push('✅ 退订：'+e.cancel);
+      if(e.note) subs.push('📝 备注：'+e.note);
+      subs.push('🗺️ [打开地图]('+'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([e.name,e.address].filter(Boolean).join(' '))+')');
+      if(e.link) subs.push('🔗 [查看原文]('+e.link+')');
+      subs.forEach(s=>{ md+='    - '+s+'\n'; });
     });
-    md+='\n';
+    md+='\n---\n\n';
   });
-  download('trip-sheet-'+dateStamp()+'.md', md, 'text/markdown');
-  toast('已导出行程单 Markdown');
+  download('trip-'+dateStamp()+'.md', md, 'text/markdown');
+  toast('已导出 Notion 格式：Notion → 导入 → Markdown');
 }
 
 // ============ 导出 ============
@@ -1598,7 +1607,7 @@ function toast(msg){
 }
 
 // ============ 初始化 ============
-const VERSION='v0.7.0';
+const VERSION='v0.7.1';
 bindTypePick('m-type-pick','m-type','m');
 // 云同步初始化：恢复会话
 initSupabase();
@@ -1609,6 +1618,6 @@ document.getElementById('entry-list').addEventListener('click',function(ev){
 });
 render();
 </script>
-<div class="footer">行前夹 <span class="ver">v0.7.0</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
+<div class="footer">行前夹 <span class="ver">v0.7.1</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
 </body>
 </html>
