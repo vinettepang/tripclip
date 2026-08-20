@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>行前夹 TripClip v0.6.5 · 出行前资料收集</title>
+<title>行前夹 TripClip v0.6.6 · 出行前资料收集</title>
 <script src="vendor/supabase.min.js"></script>
 <style>
 :root{
@@ -33,6 +33,10 @@ header{display:flex;align-items:center;justify-content:space-between;padding:12p
 textarea,input[type=text],input[type=password]{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;background:#fbfaf7;color:var(--ink);font-family:inherit;transition:border .2s}
 textarea{resize:vertical;min-height:64px}
 textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(--brand)}
+.ta-wrap{position:relative}
+.ta-wrap textarea{padding-bottom:32px}
+#ai-model{position:absolute;right:8px;bottom:8px;max-width:170px;font-size:11px;padding:2px 6px;border:1px solid var(--line);border-radius:6px;background:rgba(251,250,247,.94);color:var(--ink);font-family:inherit;cursor:pointer;opacity:.7;transition:opacity .2s,border-color .2s}
+#ai-model:hover,#ai-model:focus{opacity:1;border-color:var(--brand)}
 .field{margin-bottom:12px}
 .field label{display:block;font-size:12px;color:var(--sub);margin-bottom:4px}
 .hint{font-size:12px;color:var(--sub);margin-top:6px}
@@ -152,7 +156,7 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
     <div class="brand">
       <div class="logo">🧭</div>
       <div>
-        <h1>行前夹 <span class="ver-badge">v0.6.5</span></h1>
+        <h1>行前夹 <span class="ver-badge">v0.6.6</span></h1>
         <small>TRIP CLIP · 出行前资料收集</small>
       </div>
     </div>
@@ -177,6 +181,7 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
     <h2><span class="step">1</span> 收集一条</h2>
     <div class="field">
       <label>粘贴小红书分享文本 / 帖子正文</label>
+      <div class="ta-wrap">
       <textarea id="in-text" placeholder="直接粘贴从小红书「分享」或「复制文本」得到的内容
 
 链接和正文粘在一起也行，自动拆分：
@@ -191,12 +196,18 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
 💰 人均¥120
 🔗 https://www.xiaohongshu.com/explore/xxxx
 复制此信息，打开小红书App即可看到"></textarea>
+        <select id="ai-model" title="AI 模型：优先用所选模型，返回无效/失败时自动降级其他模型" aria-label="AI 模型选择">
+          <option value="glm-4.6v" selected>glm-4.6v</option>
+          <option value="glm-4.6v-flash">glm-4.6v-flash（免费）</option>
+          <option value="glm-4-flash">glm-4-flash（免费）</option>
+        </select>
+      </div>
     </div>
     <div class="btn-row">
       <button class="btn btn-primary" id="btn-extract" onclick="extractAndAdd()">✨ 智能提取</button>
       <button class="btn btn-ghost" onclick="openModal('manual')">＋ 手动录入</button>
     </div>
-    <div class="hint">💡 小红书 App 点「分享」→ 直接粘贴到这里，链接和正文自动拆分。<code>地址：</code> <code>营业时间：</code> <code>人均：</code> 及 📍 / 🕐 / 💰 emoji 形式都能识别；已内置 AI（智谱 glm-4.6v），口语化文案如「两个人吃了两百多」也能自动理解提取。提取结果会先弹出预览，确认后保存。</div>
+    <div class="hint">💡 小红书 App 点「分享」→ 直接粘贴到这里，链接和正文自动拆分。<code>地址：</code> <code>营业时间：</code> <code>人均：</code> 及 📍 / 🕐 / 💰 emoji 形式都能识别；已内置 AI（默认 glm-4.6v），口语化文案如「两个人吃了两百多」也能自动理解提取。输入框右下角可切换模型（glm-4.6v-flash / glm-4-flash 免费），所选模型失败或返回无效时自动降级，提取结果会先弹出预览，确认后保存。</div>
   </div>
 
   <!-- 列表 -->
@@ -712,6 +723,11 @@ const AI_CFG_KEY='tripclip.ai.v1';
 const DEFAULT_AI_ENDPOINT='https://open.bigmodel.cn/api/paas/v4/chat/completions';
 const DEFAULT_AI_MODEL='glm-4.6v';
 const DEFAULT_AI_KEY='4b872cc310ff4d9684085384d20cdf97.T22sOQ5sp8gH3Cg6';
+const AI_MODELS=['glm-4.6v','glm-4.6v-flash','glm-4-flash']; // 内置可选模型
+function buildModelList(preferred){
+  // 降级顺序：用户所选 → 其余按内置顺序补齐（去重）
+  return [preferred].concat(AI_MODELS.filter(m=>m!==preferred));
+}
 const AI_SYSTEM_PROMPT='你是一名旅行信息整理助手。用户给你一段小红书笔记（种草文案/攻略/酒店餐厅景点介绍），请提取结构化信息，只输出一个 JSON 对象（不要 markdown 代码块、不要任何解释文字），字段：{"name":"店名或地点名称","type":"餐厅|景点|酒店|机票|火车|门票|其他","price":"人均价格，如：人均¥120/免费","address":"尽量完整的地址或位置描述","hours":"营业/开放时间","note":"推荐菜、亮点、注意事项等要点","tags":["1-3个简短标签"]}。规则：1. name 必须有，无法确定时给最可能的名称（如标题中的主体）；2. 文本没提到的字段留空字符串，绝不编造；3. 口语化信息（如"两个人吃了两百多"→"人均约100"、"在新宿站旁"→"新宿站附近"）转换成简洁中文描述；4. type 只能取给定枚举之一。';
 function getAIConfig(){
   // 优先读取用户自定义配置（兼容旧版），否则使用内置默认（开箱即用）
@@ -739,14 +755,14 @@ async function callLLM(cfg, userText){
   const content=(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
   return content;
 }
-async function aiExtract(text){
-  const cfg=getAIConfig();
+async function aiExtract(text, cfg){
+  cfg = cfg || getAIConfig();
   const content=await callLLM(cfg, text);
   let s=content.replace(/```(?:json)?\s*/gi,'').replace(/```/g,'').trim();
   const a=s.indexOf('{'), b=s.lastIndexOf('}');
   if(a<0||b<0) throw new Error('AI 返回内容无法解析');
   const obj=JSON.parse(s.slice(a,b+1));
-  return {
+  const result={
     name:String(obj.name||'').trim(),
     type:String(obj.type||'').trim(),
     price:String(obj.price||'').trim(),
@@ -755,6 +771,8 @@ async function aiExtract(text){
     note:String(obj.note||'').trim(),
     tags:(Array.isArray(obj.tags)?obj.tags:[]).map(String).slice(0,5)
   };
+  if(!result.name) throw new Error('AI 返回结果无效（未识别出名称）');
+  return result;
 }
 
 // ============ 智能提取 ============
@@ -875,10 +893,23 @@ async function runAIExtract(content, link){
   const btn=document.getElementById('btn-extract');
   if(btn){ btn.disabled=true; btn.textContent='🤖 AI 提取中…'; }
   try{
-    const r = await aiExtract(content);
-    openPreview(r, link, 'AI 识别');
-  }catch(e){
-    console.warn('AI 提取失败，降级规则识别:', e.message);
+    const base=getAIConfig();
+    const sel=document.getElementById('ai-model');
+    const preferred=(sel && sel.value) || base.model || DEFAULT_AI_MODEL;
+    let lastErr='';
+    for(const model of buildModelList(preferred)){
+      if(btn && model!==preferred) btn.textContent='🤖 AI 提取中…（'+model+'）';
+      try{
+        const r=await aiExtract(content, {endpoint:base.endpoint, key:base.key, model});
+        openPreview(r, link, 'AI 识别 · '+model);
+        return;
+      }catch(e){
+        lastErr=e.message||String(e);
+        console.warn('AI 模型 '+model+' 提取失败，尝试降级:', lastErr);
+      }
+    }
+    // 全部 AI 模型失败/无效 → 降级规则识别
+    console.warn('全部 AI 模型不可用，降级规则识别:', lastErr);
     const r = extractFromText(content);
     openPreview(r, link, 'AI 提取失败，已用规则识别');
   }finally{
@@ -1218,7 +1249,7 @@ function toast(msg){
 }
 
 // ============ 初始化 ============
-const VERSION='v0.6.5';
+const VERSION='v0.6.6';
 bindTypePick('m-type-pick','m-type','m');
 // 云同步初始化：恢复会话
 initSupabase();
@@ -1229,6 +1260,6 @@ document.getElementById('entry-list').addEventListener('click',function(ev){
 });
 render();
 </script>
-<div class="footer">行前夹 <span class="ver">v0.6.5</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
+<div class="footer">行前夹 <span class="ver">v0.6.6</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
 </body>
 </html>
