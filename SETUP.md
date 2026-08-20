@@ -15,7 +15,11 @@
 - 内置项目被暂停 / 网络不可达 / 想换区域
 - 想自托管一份给团队或朋友用
 
-自建时在应用设置面板（☁️ 云同步设置）改填自己的 URL 和 key 即可覆盖内置配置；点「恢复内置配置」可随时回到默认。
+自建后需要把应用的默认配置改成你自己的项目（应用界面已隐藏配置入口）：
+1. 编辑 `index.html`，把开头的 `DEFAULT_SB_URL` 和 `DEFAULT_SB_KEY` 改成你自建项目的值
+2. 重新发布（push 触发自动部署）
+
+> 已使用旧版设置面板保存过自定义配置的用户，应用仍会优先读取 localStorage 里的配置，不受内置值影响。
 
 ---
 
@@ -55,11 +59,17 @@ Supabase 新项目默认的 Site URL 是 `http://localhost:3000`，不改的话�
    - `https://你的用户名.github.io/tripclip/**`
 4. 点 **Save**
 
-## 第 5 步：填进应用（覆盖内置配置）
+## 第 5 步：把默认配置指向自建项目
 
-1. 打开行前夹（必须是线上地址 `https://你的用户名.github.io/tripclip/`，不是本地文件）
-2. 点 **「☁️ 云同步设置」** 展开 → 输入框应已预填内置默认值，把 **Project URL** 和 **anon key** 换成你自建项目的值
-3. 点 **保存配置**，看到「✓ 配置已保存」即成功（想回退内置：点「恢复内置配置」）
+应用界面已隐藏配置入口，自建项目需修改代码内置配置：
+
+1. 编辑 `index.html`，找到文件开头的两行常量：
+   ```js
+   const DEFAULT_SB_URL='https://你的项目.supabase.co';
+   const DEFAULT_SB_KEY='sb_publishable_...';
+   ```
+2. 替换为自建项目的 **Project URL** 和 **publishable key**（Settings → API → publishable key，`sb_publishable_` 开头）
+3. 重新 push，Pages 自动部署后生效
 
 ## 第 6 步：注册账号
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>行前夹 TripClip v0.6 · 出行前资料收集</title>
+<title>行前夹 TripClip v0.6.1 · 出行前资料收集</title>
 <script src="vendor/supabase.min.js"></script>
 <style>
 :root{
@@ -152,7 +152,7 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
     <div class="brand">
       <div class="logo">🧭</div>
       <div>
-        <h1>行前夹 <span class="ver-badge">v0.6</span></h1>
+        <h1>行前夹 <span class="ver-badge">v0.6.1</span></h1>
         <small>TRIP CLIP · 出行前资料收集</small>
       </div>
     </div>
@@ -168,7 +168,6 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
     <span id="auth-user"></span>
     <span class="sync-state" id="sync-state"></span>
     <span class="spacer"></span>
-    <button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙ 云设置</button>
     <button class="btn btn-ghost btn-sm" onclick="retrySync()">↻ 重新同步</button>
     <button class="btn btn-ghost btn-sm" onclick="logout()">退出登录</button>
   </div>
@@ -200,27 +199,6 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
     </div>
     <div class="hint">💡 小红书 App 点「分享」→ 直接粘贴到这里，链接和正文自动拆分。<code>地址：</code> <code>营业时间：</code> <code>人均：</code> 及 📍 / 🕐 / 💰 emoji 形式都能识别。结果可再编辑。</div>
   </div>
-
-  <!-- 云同步设置（已内置默认配置，一般无需改动） -->
-  <details class="card settings-card" id="settings-panel">
-    <summary><span>☁️ 云同步设置（默认已内置，直接注册即可用）</span></summary>
-    <div class="settings-body">
-      <div class="field">
-        <label>Supabase 项目 URL</label>
-        <input type="text" id="sb-url" placeholder="https://你的项目.supabase.co" autocomplete="off">
-      </div>
-      <div class="field">
-        <label>Supabase anon public key（公开密钥，仅用于客户端）</label>
-        <input type="text" id="sb-key" placeholder="sb_publishable_...（Settings → API → publishable key）" autocomplete="off">
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-ghost btn-sm" onclick="saveSbConfig()">保存配置</button>
-        <button class="btn btn-ghost btn-sm" onclick="resetSbConfig()">恢复内置配置</button>
-        <span class="hint" id="sb-config-state" style="margin:0"></span>
-      </div>
-      <div class="hint">默认已内置云端配置，<b>无需填写</b>，注册账号即可在 Mac / 手机间同步数据。想改用自建 Supabase 项目时，改填后点「保存配置」即可覆盖（建项目步骤见 <code>SETUP.md</code>）。</div>
-    </div>
-  </details>
 
   <!-- 列表 -->
   <div class="toolbar">
@@ -343,6 +321,10 @@ const SB_CFG_KEY='tripclip.supabase.v1';
 // 仍可在设置面板覆盖为自己的 Supabase 项目，或点「恢复内置配置」回到默认
 const DEFAULT_SB_URL='https://wjzxxqdpuweeuzepvlap.supabase.co';
 const DEFAULT_SB_KEY='sb_publishable_OUTyIbq_bp0XzfRs8W8wIA_hM_PWudU';
+// 本设备最近成功同步过的账号（用于区分「首次迁移」与「已同步设备的旧缓存」，防止删除被其他设备恢复）
+const SB_USER_KEY='tripclip.user.v1';
+function getSyncedUser(){ try{ return localStorage.getItem(SB_USER_KEY)||null; }catch(e){ return null; } }
+function setSyncedUser(uid){ try{ localStorage.setItem(SB_USER_KEY, uid||''); }catch(e){} }
 let sb=null;            // supabase 客户端
 let sbUser=null;        // 当前登录用户
 let authMode='login';   // login | signup
@@ -357,38 +339,10 @@ function getSbConfig(){
   }catch(e){}
   return {url:DEFAULT_SB_URL, key:DEFAULT_SB_KEY, builtin:true};
 }
-function saveSbConfig(){
-  const url=document.getElementById('sb-url').value.trim();
-  const key=document.getElementById('sb-key').value.trim();
-  if(!url||!key){ toast('URL 和 anon key 都要填'); return; }
-  // 与内置一致时视为默认配置，不落盘（便于日后随版本升级更新内置值）
-  if(url===DEFAULT_SB_URL && key===DEFAULT_SB_KEY){
-    try{ localStorage.removeItem(SB_CFG_KEY); }catch(e){}
-  }else{
-    try{ localStorage.setItem(SB_CFG_KEY, JSON.stringify({url,key})); }catch(e){}
-  }
-  const st=document.getElementById('sb-config-state');
-  if(st) st.textContent='✓ 配置已保存'+(sb?'，已连接':'');
-  toast('云同步配置已保存');
-  initSupabase();
-}
-function resetSbConfig(){
-  try{ localStorage.removeItem(SB_CFG_KEY); }catch(e){}
-  const u=document.getElementById('sb-url'), k=document.getElementById('sb-key');
-  if(u) u.value=DEFAULT_SB_URL;
-  if(k) k.value=DEFAULT_SB_KEY;
-  const st=document.getElementById('sb-config-state');
-  if(st) st.textContent='已恢复内置配置，刷新页面后生效';
-  toast('已恢复内置配置');
-}
 function initSupabase(){
   if(typeof supabase==='undefined'){ console.warn('supabase SDK 未加载'); return false; }
   const cfg=getSbConfig();
   if(!cfg) return false;
-  // 设置面板预填（未手动保存过自定义配置时）
-  const urlInput=document.getElementById('sb-url'), keyInput=document.getElementById('sb-key');
-  if(urlInput && !urlInput.value) urlInput.value=cfg.url;
-  if(keyInput && !keyInput.value) keyInput.value=cfg.key;
   try{
     sb=supabase.createClient(cfg.url, cfg.key, {
       auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
@@ -407,7 +361,6 @@ function initSupabase(){
     return true;
   }catch(e){ console.error('Supabase init failed:', e); return false; }
 }
-function openSettings(){ const p=document.getElementById('settings-panel'); if(p) p.open=true; }
 function onAuthChip(){
   if(sbUser) return;
   if(!sb){ toast('云端正在初始化，请稍后重试'); return; }
@@ -560,19 +513,26 @@ async function pullFromCloud(askMigrate){
     const { data, error } = await sb.from('entries').select('*').order('created_at',{ascending:false});
     if(error) throw error;
     const cloud=(data||[]).map(fromDB);
+    // 本设备从未成功同步过任何账号 → 允许「首次迁移」；否则一律以云端为准
+    const firstSync = getSyncedUser()===null;
     if(cloud.length>0){
+      // 云端有数据：云端为权威，覆盖本地（同步删除：其他设备删掉的条目在此清除）
       entries=cloud; save(); render();
-      setSyncState('✓ 已同步 '+cloud.length+' 条','ok');
       if(askMigrate) toast('已从云端加载 '+cloud.length+' 条数据');
-    }else if(entries.length>0 && askMigrate){
+    }else if(entries.length>0 && askMigrate && firstSync){
+      // 首次在该设备同步 + 本地有数据 + 云端为空 → 迁移弹窗（Mac 老数据首次上云）
       if(confirm('检测到本机有 '+entries.length+' 条收藏。是否上传到云端，实现 Mac 与手机数据互通？\n\n（点「取消」则不上传，本机数据保留，但其他设备看不到）')){
         await migrateToCloud();
-      }else{
-        setSyncState('✓ 已同步（0 条）','ok');
+        setSyncedUser(sbUser.id);
+        return; // migrateToCloud 已设置「已上传」状态，不再覆盖
       }
-    }else{
-      setSyncState('✓ 已同步（0 条）','ok');
+    }else if(entries.length>0 && askMigrate && !firstSync){
+      // 已同步过的设备：云端为空即权威 → 清除本机旧缓存（避免被删条目在本地复活再传回云端）
+      entries=[]; save(); render();
+      toast('云端数据为空，已清除本机旧缓存');
     }
+    setSyncedUser(sbUser.id);
+    setSyncState('✓ 已同步 '+entries.length+' 条','ok');
   }catch(e){
     setSyncState('✗ 云端加载失败：'+(e.message||'网络错误')+'（本机数据不受影响）','warn');
   }
@@ -1024,15 +984,9 @@ function toast(msg){
 }
 
 // ============ 初始化 ============
-const VERSION='v0.6';
+const VERSION='v0.6.1';
 bindTypePick('m-type-pick','m-type','m');
-// 云同步初始化：预填配置 + 恢复会话
-const _sbCfg=getSbConfig();
-if(_sbCfg){
-  const u=document.getElementById('sb-url'), k=document.getElementById('sb-key');
-  if(u) u.value=_sbCfg.url;
-  if(k) k.value=_sbCfg.key;
-}
+// 云同步初始化：恢复会话
 initSupabase();
 // 地址复制：事件委托（data-copy 属性触发）
 document.getElementById('entry-list').addEventListener('click',function(ev){
@@ -1041,6 +995,6 @@ document.getElementById('entry-list').addEventListener('click',function(ev){
 });
 render();
 </script>
-<div class="footer">行前夹 <span class="ver">v0.6</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
+<div class="footer">行前夹 <span class="ver">v0.6.1</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
 </body>
 </html>
