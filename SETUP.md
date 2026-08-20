@@ -112,7 +112,7 @@ Supabase 新项目默认的 Site URL 是 `http://localhost:3000`，不改的话�
 Supabase 新项目默认 Site URL 是 `http://localhost:3000`。去 **Authentication → URL Configuration** 把 **Site URL** 改成线上地址（如 `https://你的用户名.github.io/tripclip/`），并添加 Redirect URL `https://你的用户名.github.io/tripclip/**`，保存后重新注册即可。已发出的旧邮件链接不会变，需重新注册。
 
 **Q：小红书正文是口语化文案，提取不准确怎么办？**  
-点输入框旁的 **「⚙ AI 设置」**，填一个 OpenAI 兼容接口的 Key（默认已填智谱免费模型 `glm-4-flash`，注册 open.bigmodel.cn → API Keys 即可，零成本；DeepSeek / 通义等接口也支持）。配置后「智能提取」会用 AI 理解口语化表达（如"两个人吃了两百多"→ 人均约 100），识别率大幅提升；AI 不可用时自动降级为规则识别，提取结果均可在预览弹窗里修改后确认保存。
+开箱版已内置智谱免费模型 `glm-4-flash` 的 API Key，「智能提取」直接用 AI 理解口语化表达（如"两个人吃了两百多"→ 人均约 100），无需任何配置。AI 不可用时自动降级为规则识别，提取结果均可在预览弹窗里修改后确认保存。若想换自己的 Key（自建 API 或想换 DeepSeek / 通义等接口），在浏览器开发者工具 Console 里执行 `localStorage.setItem('tripclip.ai.v1', JSON.stringify({endpoint:'https://.../v1/chat/completions', key:'你的Key', model:'模型名'}))` 即可覆盖内置默认。
 
 **Q：国内访问慢/打不开怎么办？**  
 项目区域选的新加坡/东京一般可用。如果完全不可用，备选方案是换 LeanCloud（国内版），需要另建项目，结构类似。

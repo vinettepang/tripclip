@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>行前夹 TripClip v0.6.3 · 出行前资料收集</title>
+<title>行前夹 TripClip v0.6.4 · 出行前资料收集</title>
 <script src="vendor/supabase.min.js"></script>
 <style>
 :root{
@@ -152,7 +152,7 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
     <div class="brand">
       <div class="logo">🧭</div>
       <div>
-        <h1>行前夹 <span class="ver-badge">v0.6.3</span></h1>
+        <h1>行前夹 <span class="ver-badge">v0.6.4</span></h1>
         <small>TRIP CLIP · 出行前资料收集</small>
       </div>
     </div>
@@ -195,10 +195,8 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
     <div class="btn-row">
       <button class="btn btn-primary" id="btn-extract" onclick="extractAndAdd()">✨ 智能提取</button>
       <button class="btn btn-ghost" onclick="openModal('manual')">＋ 手动录入</button>
-      <span class="spacer"></span>
-      <button class="btn btn-link btn-sm" onclick="openModal('ai-set')" title="配置 AI 后，口语化文案也能提取（默认智谱免费模型）">⚙ AI 设置</button>
     </div>
-    <div class="hint">💡 小红书 App 点「分享」→ 直接粘贴到这里，链接和正文自动拆分。<code>地址：</code> <code>营业时间：</code> <code>人均：</code> 及 📍 / 🕐 / 💰 emoji 形式都能识别。配置 <b>⚙ AI</b> 后，即使写的是「两个人吃了两百多」也能自动理解并提取，识别率大幅提升。提取结果会先弹出预览，确认后保存。</div>
+    <div class="hint">💡 小红书 App 点「分享」→ 直接粘贴到这里，链接和正文自动拆分。<code>地址：</code> <code>营业时间：</code> <code>人均：</code> 及 📍 / 🕐 / 💰 emoji 形式都能识别；已内置免费 AI（智谱 glm-4-flash），口语化文案如「两个人吃了两百多」也能自动理解提取。提取结果会先弹出预览，确认后保存。</div>
   </div>
 
   <!-- 列表 -->
@@ -273,33 +271,6 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
       <button class="btn btn-ghost" onclick="closeModal('reset-pass')">取消</button>
     </div>
     <div class="hint" id="rp-hint"></div>
-  </div>
-</div>
-
-<!-- AI 提取设置弹窗 -->
-<div class="modal-mask" id="modal-ai-set">
-  <div class="modal" style="max-width:460px">
-    <h3>AI 提取设置 <span class="close" onclick="closeModal('ai-set')">✕</span></h3>
-    <div class="hint" style="margin-top:0">配置后「智能提取」会用 AI 理解口语化文案（如「两个人吃了两百多」→ 人均约 100），识别率大幅提升。默认指向 <b>智谱免费模型 glm-4-flash</b>，只需填 Key、零成本；也可换任意 OpenAI 兼容接口（DeepSeek / 通义等）。</div>
-    <div class="field">
-      <label>API 地址</label>
-      <input type="text" id="ai-endpoint" placeholder="https://open.bigmodel.cn/api/paas/v4/chat/completions" autocomplete="off">
-    </div>
-    <div class="field">
-      <label>API Key</label>
-      <input type="password" id="ai-key" placeholder="智谱：open.bigmodel.cn 注册 → API Keys（glm-4-flash 免费）" autocomplete="off">
-    </div>
-    <div class="field">
-      <label>模型名</label>
-      <input type="text" id="ai-model" placeholder="glm-4-flash" autocomplete="off">
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-primary" onclick="saveAIConfig()">保存</button>
-      <button class="btn btn-ghost" onclick="testAIConnection()">测试连接</button>
-      <span class="spacer"></span>
-      <button class="btn btn-ghost" onclick="closeModal('ai-set')">取消</button>
-    </div>
-    <div class="hint" id="ai-set-state"></div>
   </div>
 </div>
 
@@ -736,42 +707,19 @@ function setManualType(t){
   btn.click();
 }
 
-// ============ AI 智能提取（OpenAI 兼容接口，默认智谱免费模型） ============
+// ============ AI 智能提取（OpenAI 兼容接口，内置智谱免费模型） ============
 const AI_CFG_KEY='tripclip.ai.v1';
 const DEFAULT_AI_ENDPOINT='https://open.bigmodel.cn/api/paas/v4/chat/completions';
 const DEFAULT_AI_MODEL='glm-4-flash';
+const DEFAULT_AI_KEY='4b872cc310ff4d9684085384d20cdf97.T22sOQ5sp8gH3Cg6';
 const AI_SYSTEM_PROMPT='你是一名旅行信息整理助手。用户给你一段小红书笔记（种草文案/攻略/酒店餐厅景点介绍），请提取结构化信息，只输出一个 JSON 对象（不要 markdown 代码块、不要任何解释文字），字段：{"name":"店名或地点名称","type":"餐厅|景点|酒店|机票|火车|门票|其他","price":"人均价格，如：人均¥120/免费","address":"尽量完整的地址或位置描述","hours":"营业/开放时间","note":"推荐菜、亮点、注意事项等要点","tags":["1-3个简短标签"]}。规则：1. name 必须有，无法确定时给最可能的名称（如标题中的主体）；2. 文本没提到的字段留空字符串，绝不编造；3. 口语化信息（如"两个人吃了两百多"→"人均约100"、"在新宿站旁"→"新宿站附近"）转换成简洁中文描述；4. type 只能取给定枚举之一。';
 function getAIConfig(){
+  // 优先读取用户自定义配置（兼容旧版），否则使用内置默认（开箱即用）
   try{
     const c=JSON.parse(localStorage.getItem(AI_CFG_KEY));
     if(c && c.key) return {endpoint:c.endpoint||DEFAULT_AI_ENDPOINT, key:c.key, model:c.model||DEFAULT_AI_MODEL};
   }catch(e){}
-  return null;
-}
-function saveAIConfig(){
-  const endpoint=document.getElementById('ai-endpoint').value.trim();
-  const key=document.getElementById('ai-key').value.trim();
-  const model=document.getElementById('ai-model').value.trim();
-  if(!key){ toast('API Key 不能为空'); return; }
-  const cfg={endpoint:endpoint||DEFAULT_AI_ENDPOINT, key, model:model||DEFAULT_AI_MODEL};
-  try{ localStorage.setItem(AI_CFG_KEY, JSON.stringify(cfg)); }catch(e){}
-  const st=document.getElementById('ai-set-state');
-  if(st) st.textContent='✓ 已保存。可点「测试连接」验证，或关闭后直接用「智能提取」。';
-  toast('AI 配置已保存');
-}
-async function testAIConnection(){
-  const cfg=getAIConfig();
-  if(!cfg){ toast('请先点「保存」'); return; }
-  const st=document.getElementById('ai-set-state');
-  if(st) st.textContent='正在测试连接…';
-  try{
-    const reply=await callLLM(cfg,'请只回复两个字：成功');
-    if(st) st.textContent='✓ 连接成功，模型回复：「'+String(reply).slice(0,30)+'」';
-    toast('AI 连接成功');
-  }catch(e){
-    if(st) st.textContent='✗ 连接失败：'+(e.message||'网络错误')+'（可换 DeepSeek / 通义等兼容接口）';
-    toast('AI 连接失败');
-  }
+  return {endpoint:DEFAULT_AI_ENDPOINT, key:DEFAULT_AI_KEY, model:DEFAULT_AI_MODEL};
 }
 async function callLLM(cfg, userText){
   const res=await fetch(cfg.endpoint, {
@@ -793,7 +741,6 @@ async function callLLM(cfg, userText){
 }
 async function aiExtract(text){
   const cfg=getAIConfig();
-  if(!cfg) throw new Error('NO_KEY');
   const content=await callLLM(cfg, text);
   let s=content.replace(/```(?:json)?\s*/gi,'').replace(/```/g,'').trim();
   const a=s.indexOf('{'), b=s.lastIndexOf('}');
@@ -921,12 +868,8 @@ function extractAndAdd(){
     return;
   }
   const content = text || raw;
-  if(getAIConfig()){
-    runAIExtract(content, link);
-  }else{
-    const r = extractFromText(content);
-    openPreview(r, link, '规则识别 · 配置 ⚙ AI 可识别口语化文案');
-  }
+  // AI 已内置开箱即用；失败自动降级规则识别
+  runAIExtract(content, link);
 }
 async function runAIExtract(content, link){
   const btn=document.getElementById('btn-extract');
@@ -935,14 +878,9 @@ async function runAIExtract(content, link){
     const r = await aiExtract(content);
     openPreview(r, link, 'AI 识别');
   }catch(e){
-    if(e.message==='NO_KEY'){
-      openModal('ai-set');
-      toast('请先在 AI 设置里填入 Key（默认智谱免费模型）');
-    }else{
-      console.warn('AI 提取失败，降级规则识别:', e.message);
-      const r = extractFromText(content);
-      openPreview(r, link, 'AI 提取失败，已用规则识别');
-    }
+    console.warn('AI 提取失败，降级规则识别:', e.message);
+    const r = extractFromText(content);
+    openPreview(r, link, 'AI 提取失败，已用规则识别');
   }finally{
     if(btn){ btn.disabled=false; btn.textContent='✨ 智能提取'; }
   }
@@ -992,7 +930,7 @@ function savePreview(){
 let editingId=null;
 // 从重置邮件跳回：身份已确认，打开设置新密码弹窗
 function openResetPass(){ openModal('reset-pass'); }
-const MODAL_MAP={edit:'modal-edit',manual:'modal-manual',login:'modal-login','reset-pass':'modal-reset-pass','ai-set':'modal-ai-set',preview:'modal-preview'};
+const MODAL_MAP={edit:'modal-edit',manual:'modal-manual',login:'modal-login','reset-pass':'modal-reset-pass',preview:'modal-preview'};
 function openModal(kind){
   if(kind==='edit'){
     document.getElementById('modal-edit').classList.add('open');
@@ -1003,14 +941,6 @@ function openModal(kind){
     document.getElementById('rp-pass').value=''; document.getElementById('rp-pass2').value='';
     document.getElementById('rp-hint').textContent='';
     document.getElementById('modal-reset-pass').classList.add('open');
-  }else if(kind==='ai-set'){
-    const cfg=getAIConfig()||{endpoint:DEFAULT_AI_ENDPOINT, model:DEFAULT_AI_MODEL, key:''};
-    document.getElementById('ai-endpoint').value=cfg.endpoint||DEFAULT_AI_ENDPOINT;
-    document.getElementById('ai-key').value=cfg.key||'';
-    document.getElementById('ai-model').value=cfg.model||DEFAULT_AI_MODEL;
-    const st=document.getElementById('ai-set-state');
-    if(st) st.textContent=cfg.key?'（已配置，可修改后重新保存）':'（未配置，填 Key 后保存即可，默认智谱免费模型）';
-    document.getElementById('modal-ai-set').classList.add('open');
   }else if(kind==='preview'){
     document.getElementById('modal-preview').classList.add('open');
   }else{
@@ -1288,7 +1218,7 @@ function toast(msg){
 }
 
 // ============ 初始化 ============
-const VERSION='v0.6.3';
+const VERSION='v0.6.4';
 bindTypePick('m-type-pick','m-type','m');
 // 云同步初始化：恢复会话
 initSupabase();
@@ -1299,6 +1229,6 @@ document.getElementById('entry-list').addEventListener('click',function(ev){
 });
 render();
 </script>
-<div class="footer">行前夹 <span class="ver">v0.6.3</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
+<div class="footer">行前夹 <span class="ver">v0.6.4</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
 </body>
 </html>
