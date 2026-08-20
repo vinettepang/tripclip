@@ -20,11 +20,15 @@ create table if not exists public.entries (
   extra      text not null default '',
   note       text not null default '',
   link       text not null default '',
+  raw        text not null default '',
   source     text not null default '',
   pending    boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- 1b. 老项目升级（v0.6.8 起新增 raw 列，已建表的项目执行这条即可）
+alter table public.entries add column if not exists raw text not null default '';
 
 -- 2. 行级安全策略：每个用户只能读写自己的数据（最关键的一步）
 alter table public.entries enable row level security;

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>行前夹 TripClip v0.6.7 · 出行前资料收集</title>
+<title>行前夹 TripClip v0.6.8 · 出行前资料收集</title>
 <script src="vendor/supabase.min.js"></script>
 <style>
 :root{
@@ -86,6 +86,11 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
 .entry .tags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .tag-chip{background:var(--tag);color:#8a6a4a;font-size:11px;padding:1px 8px;border-radius:999px;cursor:pointer}
 .tag-chip:hover{background:#f2e3d5}
+.raw-wrap{margin-top:8px}
+.raw-toggle{display:inline-flex;align-items:center;gap:5px;background:none;border:none;color:var(--sub);font-size:12px;cursor:pointer;padding:2px 0;font-family:inherit}
+.raw-toggle:hover{color:var(--brand)}
+.raw-caret{display:inline-block;transition:transform .2s;font-size:10px}
+.raw-body{margin-top:6px;padding:8px 10px;background:#f5f4f0;border:1px dashed var(--line);border-radius:8px;font-size:12px;line-height:1.7;color:var(--ink);white-space:pre-wrap;word-break:break-word;max-height:180px;overflow:auto}
 .entry .actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0;align-items:flex-end}
 .linkout{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--teal);text-decoration:none;font-weight:600}
 .linkout:hover{text-decoration:underline}
@@ -155,7 +160,7 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
     <div class="brand">
       <div class="logo">🧭</div>
       <div>
-        <h1>行前夹 <span class="ver-badge">v0.6.7</span></h1>
+        <h1>行前夹 <span class="ver-badge">v0.6.8</span></h1>
         <small>TRIP CLIP · 出行前资料收集</small>
       </div>
     </div>
@@ -323,6 +328,7 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
       <div class="field"><label>备注 / 小贴士</label><input type="text" id="e-note"></div>
       <div class="field full"><label>标签（逗号分隔）</label><input type="text" id="e-tags" placeholder="大阪,美食,第一天"></div>
       <div class="field full"><label>原文链接</label><input type="text" id="e-link"></div>
+      <div class="field full"><label>小红书原文（可折叠存放）</label><textarea id="e-raw" rows="3" placeholder="粘贴小红书笔记正文，可多行存放"></textarea>
     </div>
     <div class="btn-row" style="margin-top:16px">
       <button class="btn btn-primary" onclick="saveEdit()">保存</button>
@@ -360,6 +366,7 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
       <div class="field"><label>人均/价格</label><input type="text" id="m-price"></div>
       <div class="field full"><label>标签（逗号分隔）</label><input type="text" id="m-tags" placeholder="大阪,酒店,已预订"></div>
       <div class="field full"><label>来源链接（可选）</label><input type="text" id="m-link" placeholder="https://…"></div>
+      <div class="field full"><label>小红书原文（可选）</label><textarea id="m-raw" rows="3" placeholder="粘贴小红书笔记正文，可多行存放"></textarea>
     </div>
     <div class="btn-row" style="margin-top:16px">
       <button class="btn btn-primary" onclick="saveManual()">保存</button>
@@ -566,7 +573,7 @@ function toDB(e){
     address:e.address||'', hours:e.hours||'', price:e.price||'',
     cancel:e.cancel||'', date_time:e.dateTime||'', from_to:e.fromTo||'',
     code:e.code||'', extra:e.extra||'', note:e.note||'',
-    link:e.link||'', source:e.source||'', pending:!!e.pending
+    link:e.link||'', raw:e.raw||'', source:e.source||'', pending:!!e.pending
   };
 }
 function fromDB(row){
@@ -575,7 +582,7 @@ function fromDB(row){
     address:row.address, hours:row.hours, price:row.price,
     cancel:row.cancel, dateTime:row.date_time, fromTo:row.from_to,
     code:row.code, extra:row.extra, note:row.note,
-    link:row.link, source:row.source, pending:row.pending,
+    link:row.link, raw:row.raw||'', source:row.source, pending:row.pending,
     createdAt:new Date(row.created_at).getTime()
   };
 }
@@ -901,7 +908,7 @@ async function runAIExtract(content, link){
       if(btn && model!==preferred) btn.textContent='🤖 AI 提取中…（'+model+'）';
       try{
         const r=await aiExtract(content, {endpoint:base.endpoint, key:base.key, model});
-        openPreview(r, link, 'AI 识别 · '+model);
+        openPreview(r, link, 'AI 识别 · '+model, content);
         return;
       }catch(e){
         lastErr=e.message||String(e);
@@ -911,7 +918,7 @@ async function runAIExtract(content, link){
     // 全部 AI 模型失败/无效 → 降级规则识别
     console.warn('全部 AI 模型不可用，降级规则识别:', lastErr);
     const r = extractFromText(content);
-    openPreview(r, link, 'AI 提取失败，已用规则识别');
+    openPreview(r, link, 'AI 提取失败，已用规则识别', content);
   }finally{
     if(btn){ btn.disabled=false; btn.textContent='✨ 智能提取'; }
   }
@@ -919,8 +926,8 @@ async function runAIExtract(content, link){
 
 // ============ 提取预览弹窗 ============
 let previewData=null;
-function openPreview(r, link, source){
-  previewData={ r, link, source };
+function openPreview(r, link, source, raw){
+  previewData={ r, link, source, raw: raw||'' };
   document.getElementById('pv-name').value=r.name||'';
   document.getElementById('pv-type').value=r.type||'';
   document.getElementById('pv-price').value=r.price||'';
@@ -946,6 +953,7 @@ function savePreview(){
   const entry = {
     id: uid(), name: name||'未命名地点', type: finalType, price, address,
     hours, note, tags, link, source:'extract',
+    raw: previewData.raw || '',
     dateTime:'', code:'', fromTo:'', extra:'', cancel:'',
     createdAt: Date.now(), pending: !!(link && !address)
   };
@@ -975,7 +983,7 @@ function openModal(kind){
   }else if(kind==='preview'){
     document.getElementById('modal-preview').classList.add('open');
   }else{
-    ['m-name','m-type','m-price','m-address','m-datetime','m-code','m-fromto','m-extra','m-cancel','m-tags','m-link'].forEach(i=>document.getElementById(i).value='');
+    ['m-name','m-type','m-price','m-address','m-datetime','m-code','m-fromto','m-extra','m-cancel','m-tags','m-link','m-raw'].forEach(i=>document.getElementById(i).value='');
     setManualType('其他');
     document.getElementById('modal-manual').classList.add('open');
   }
@@ -1000,6 +1008,7 @@ function editEntry(id){
   document.getElementById('e-note').value=e.note;
   document.getElementById('e-tags').value=e.tags.join(',');
   document.getElementById('e-link').value=e.link||'';
+  document.getElementById('e-raw').value=e.raw||'';
   openModal('edit');
 }
 function saveEdit(){
@@ -1017,6 +1026,7 @@ function saveEdit(){
   e.note=document.getElementById('e-note').value.trim();
   e.tags=parseTags(document.getElementById('e-tags').value);
   e.link=document.getElementById('e-link').value.trim();
+  e.raw=document.getElementById('e-raw').value.trim();
   e.pending=false;
   save(); enqueueSync({op:'update', entry:e});
   closeModal('edit'); toast('已保存');
@@ -1037,6 +1047,7 @@ function saveManual(){
     hours:'', note:'',
     tags:parseTags(document.getElementById('m-tags').value),
     link:document.getElementById('m-link').value.trim(),
+    raw:document.getElementById('m-raw').value.trim(),
     source:'manual', createdAt:Date.now(), pending:false
   };
   entries.unshift(entry);
@@ -1157,6 +1168,7 @@ function render(){
           ${e.price?`<span>💰 <b>${esc(e.price)}</b></span>`:''}
         </div>
         ${e.note?`<div class="meta" style="margin-top:4px"><span>💬 ${esc(e.note)}</span></div>`:''}
+        ${e.raw?`<div class="raw-wrap"><button class="raw-toggle" onclick="toggleRaw('${e.id}')">📄 小红书原文 · ${e.raw.length} 字<span class="raw-caret">▸</span></button><div class="raw-body" id="raw-${e.id}" hidden>${esc(e.raw)}</div></div>`:''}
         ${tagHtml?`<div class="tags">${tagHtml}</div>`:''}
       </div>
       <div class="actions">
@@ -1170,6 +1182,13 @@ function render(){
   }).join('');
 }
 function jumpTag(t){ activeTag=t; render(); }
+function toggleRaw(id){
+  const body=document.getElementById('raw-'+id);
+  if(!body) return;
+  body.hidden=!body.hidden;
+  const caret=body.previousElementSibling && body.previousElementSibling.querySelector('.raw-caret');
+  if(caret) caret.textContent=body.hidden?'▸':'▾';
+}
 function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 // ============ 复制到剪贴板 ============
@@ -1217,6 +1236,7 @@ function exportMD(){
       if(e.price) md+=`  - 人均：${e.price}\n`;
       if(e.note) md+=`  - 备注：${e.note}\n`;
       if(e.link) md+=`  - 原文：${e.link}\n`;
+      if(e.raw) md+=`  - 小红书原文：${e.raw.replace(/\n/g,'\n    ')}\n`;
     });
     md+='\n';
   });
@@ -1225,8 +1245,8 @@ function exportMD(){
 }
 function exportCSV(){
   if(entries.length===0){ toast('还没有可导出的内容'); return; }
-  const heads=['名称','类型','时间','行程','编号','订单/备注','免费退订','地址','营业时间','人均','标签','备注','原文链接'];
-  const rows=entries.map(e=>[e.name,e.type,e.dateTime,e.fromTo,e.code,e.extra,e.cancel,e.address,e.hours,e.price,e.tags.join(' / '),e.note,e.link]
+  const heads=['名称','类型','时间','行程','编号','订单/备注','免费退订','地址','营业时间','人均','标签','备注','原文链接','小红书原文'];
+  const rows=entries.map(e=>[e.name,e.type,e.dateTime,e.fromTo,e.code,e.extra,e.cancel,e.address,e.hours,e.price,e.tags.join(' / '),e.note,e.link,e.raw]
     .map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(','));
   download('tripclip-'+dateStamp()+'.csv','\ufeff'+heads.join(',')+'\n'+rows.join('\n'),'text/csv');
   toast('已导出 CSV');
@@ -1249,7 +1269,7 @@ function toast(msg){
 }
 
 // ============ 初始化 ============
-const VERSION='v0.6.7';
+const VERSION='v0.6.8';
 bindTypePick('m-type-pick','m-type','m');
 // 云同步初始化：恢复会话
 initSupabase();
@@ -1260,6 +1280,6 @@ document.getElementById('entry-list').addEventListener('click',function(ev){
 });
 render();
 </script>
-<div class="footer">行前夹 <span class="ver">v0.6.7</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
+<div class="footer">行前夹 <span class="ver">v0.6.8</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
 </body>
 </html>
