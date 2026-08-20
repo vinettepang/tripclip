@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>行前夹 TripClip v0.5 · 出行前资料收集</title>
+<title>行前夹 TripClip v0.5.1 · 出行前资料收集</title>
 <script src="vendor/supabase.min.js"></script>
 <style>
 :root{
@@ -152,7 +152,7 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
     <div class="brand">
       <div class="logo">🧭</div>
       <div>
-        <h1>行前夹 <span class="ver-badge">v0.5</span></h1>
+        <h1>行前夹 <span class="ver-badge">v0.5.1</span></h1>
         <small>TRIP CLIP · 出行前资料收集</small>
       </div>
     </div>
@@ -469,7 +469,9 @@ function fromDB(row){
 
 // ---- 云端单条操作 ----
 async function cloudInsert(entry){
-  const { data, error } = await sb.from('entries').insert(toDB(entry)).select();
+  // user_id 必须显式带上（表定义 NOT NULL，RLS 也靠它归属数据）
+  const row = Object.assign({}, toDB(entry), { user_id: sbUser ? sbUser.id : null });
+  const { data, error } = await sb.from('entries').insert(row).select();
   if(error) throw error;
   if(data && data[0]) entry.id = data[0].id; // 回填云端生成的 uuid
   return data;
@@ -993,7 +995,7 @@ function toast(msg){
 }
 
 // ============ 初始化 ============
-const VERSION='v0.5';
+const VERSION='v0.5.1';
 bindTypePick('m-type-pick','m-type','m');
 // 云同步初始化：预填配置 + 恢复会话
 const _sbCfg=getSbConfig();
@@ -1010,6 +1012,6 @@ document.getElementById('entry-list').addEventListener('click',function(ev){
 });
 render();
 </script>
-<div class="footer">行前夹 <span class="ver">v0.5</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
+<div class="footer">行前夹 <span class="ver">v0.5.1</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
 </body>
 </html>

@@ -29,18 +29,23 @@ create table if not exists public.entries (
 -- 2. 行级安全策略：每个用户只能读写自己的数据（最关键的一步）
 alter table public.entries enable row level security;
 
+-- 幂等写法：策略存在则先删除，再重建（可安全重复运行）
+drop policy if exists "users can view own entries" on public.entries;
 create policy "users can view own entries"
   on public.entries for select
   using (auth.uid() = user_id);
 
+drop policy if exists "users can insert own entries" on public.entries;
 create policy "users can insert own entries"
   on public.entries for insert
   with check (auth.uid() = user_id);
 
+drop policy if exists "users can update own entries" on public.entries;
 create policy "users can update own entries"
   on public.entries for update
   using (auth.uid() = user_id);
 
+drop policy if exists "users can delete own entries" on public.entries;
 create policy "users can delete own entries"
   on public.entries for delete
   using (auth.uid() = user_id);
@@ -62,7 +67,10 @@ create trigger entries_set_updated_at
 create index if not exists idx_entries_user_created
   on public.entries (user_id, created_at desc);
 
--- 5. 匿名 key 只有客户端能力，数据安全靠 RLS（第 2 步）
---    不要关闭 RLS，也不要给 anon/authenticated 角色任何直接表权限
+-- 5. 表级权限（重要：与 RLS 分层配合）
+--    - authenticated（登录用户）：保留表级操作权限，行级过滤交给上面的 RLS 策略
+--    - anon（未登录）：无任何权限
+--    注意：绝不能 revoke authenticated 的表权限，否则 RLS 策略永远不会生效，
+--         登录用户会报 "permission denied for table entries"
+grant all on public.entries to authenticated;
 revoke all on public.entries from anon;
-revoke all on public.entries from authenticated;
