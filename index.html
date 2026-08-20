@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>行前夹 TripClip v0.3 · 出行前资料收集</title>
+<title>行前夹 TripClip v0.5 · 出行前资料收集</title>
+<script src="vendor/supabase.min.js"></script>
 <style>
 :root{
   --bg:#f6f4ef; --card:#ffffff; --ink:#2b2620; --sub:#8a8378; --line:#e8e3da;
@@ -29,9 +30,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:12p
 .input-panel{padding:20px}
 .input-panel h2{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .input-panel h2 .step{width:20px;height:20px;border-radius:50%;background:var(--brand);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
-textarea,input[type=text]{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;background:#fbfaf7;color:var(--ink);font-family:inherit;transition:border .2s}
+textarea,input[type=text],input[type=password]{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;background:#fbfaf7;color:var(--ink);font-family:inherit;transition:border .2s}
 textarea{resize:vertical;min-height:64px}
-textarea:focus,input[type=text]:focus{outline:none;border-color:var(--brand)}
+textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;border-color:var(--brand)}
 .field{margin-bottom:12px}
 .field label{display:block;font-size:12px;color:var(--sub);margin-bottom:4px}
 .hint{font-size:12px;color:var(--sub);margin-top:6px}
@@ -42,6 +43,8 @@ textarea:focus,input[type=text]:focus{outline:none;border-color:var(--brand)}
 .btn-primary:hover{background:var(--brand-deep)}
 .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--sub)}
 .btn-ghost:hover{border-color:var(--brand);color:var(--brand)}
+.btn-del{color:var(--danger);border-color:transparent}
+.btn-del:hover{border-color:var(--danger);color:var(--danger);background:rgba(201,85,63,.06)}
 .btn-sm{padding:5px 12px;font-size:12px;border-radius:8px}
 .btn-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .btn-row .spacer{flex:1}
@@ -124,6 +127,23 @@ textarea:focus,input[type=text]:focus{outline:none;border-color:var(--brand)}
 .trip-line .trip-item b{font-weight:600}
 .trip-sep{color:var(--line);font-size:11px}
 @media print{body{background:#fff}}
+/* account & cloud sync */
+.auth-bar{display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#fdf8f3,var(--card));border:1px solid var(--line);border-radius:12px;padding:8px 14px;margin-bottom:14px;font-size:12px;color:var(--sub);flex-wrap:wrap}
+.auth-bar .spacer{flex:1}
+.auth-bar #auth-user{font-weight:600;color:var(--ink)}
+.sync-state{font-size:12px;color:var(--sub)}
+.sync-state.ok{color:var(--ok)}
+.sync-state.warn{color:var(--warn);font-weight:600}
+.settings-card{margin-top:12px}
+.settings-card summary{cursor:pointer;padding:14px 18px;font-size:14px;font-weight:600;color:var(--ink);list-style:none;display:flex;align-items:center;gap:8px}
+.settings-card summary::-webkit-details-marker{display:none}
+.settings-card summary::before{content:'▸';transition:transform .2s;color:var(--sub);font-size:12px}
+.settings-card[open] summary::before{transform:rotate(90deg)}
+.settings-body{padding:14px 18px 18px;border-top:1px dashed var(--line)}
+#auth-chip{border-color:var(--line)}
+#auth-chip.logged-in{background:var(--teal);color:#fff}
+#auth-chip.logged-in b{color:#fff}
+#auth-chip.logged-in{display:none}
 </style>
 </head>
 <body>
@@ -132,39 +152,74 @@ textarea:focus,input[type=text]:focus{outline:none;border-color:var(--brand)}
     <div class="brand">
       <div class="logo">🧭</div>
       <div>
-        <h1>行前夹 <span class="ver-badge">v0.3</span></h1>
+        <h1>行前夹 <span class="ver-badge">v0.5</span></h1>
         <small>TRIP CLIP · 出行前资料收集</small>
       </div>
     </div>
     <div class="stats">
       <span class="stat-chip">已收藏 <b id="stat-total">0</b></span>
       <span class="stat-chip">待确认 <b id="stat-todo">0</b></span>
+      <span class="stat-chip" id="auth-chip" style="cursor:pointer" onclick="onAuthChip()" title="登录后 Mac 与手机数据自动同步">👤 <b id="auth-label">未登录</b></span>
     </div>
   </header>
+
+  <!-- 账户条：登录后显示 -->
+  <div class="auth-bar" id="auth-bar" style="display:none">
+    <span id="auth-user"></span>
+    <span class="sync-state" id="sync-state"></span>
+    <span class="spacer"></span>
+    <button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙ 云设置</button>
+    <button class="btn btn-ghost btn-sm" onclick="retrySync()">↻ 重新同步</button>
+    <button class="btn btn-ghost btn-sm" onclick="logout()">退出登录</button>
+  </div>
 
   <!-- 输入面板 -->
   <div class="card input-panel">
     <h2><span class="step">1</span> 收集一条</h2>
     <div class="field">
-      <label>小红书链接（可留空，仅手动录入时省略）</label>
-      <input type="text" id="in-link" placeholder="粘贴小红书分享链接，如 https://www.xiaohongshu.com/explore/xxxx 或 xhslink.com/xxxx">
-    </div>
-    <div class="field">
-      <label>帖子正文 / 笔记内容（粘贴文字即可自动提取店名、地址、营业时间、人均）</label>
-      <textarea id="in-text" placeholder="示例：
-XX 日料店打卡！
-地址：北京市朝阳区三里屯路 11 号
-营业时间：11:00-22:00
-人均：¥120
-强烈推荐他家的刺身拼盘……"></textarea>
+      <label>粘贴小红书分享文本 / 帖子正文</label>
+      <textarea id="in-text" placeholder="直接粘贴从小红书「分享」或「复制文本」得到的内容
+
+链接和正文粘在一起也行，自动拆分：
+  · URL → 自动提取到链接字段
+  · 推广尾部（复制此信息…）→ 自动清除
+  · 店名 / 地址 / 营业时间 / 人均 → 自动识别
+
+示例：
+东京必吃｜一兰拉面
+📍 东京都台东区浅草2-3-1
+🕐 10:00-22:00
+💰 人均¥120
+🔗 https://www.xiaohongshu.com/explore/xxxx
+复制此信息，打开小红书App即可看到"></textarea>
     </div>
     <div class="btn-row">
       <button class="btn btn-primary" onclick="extractAndAdd()">✨ 智能提取并保存</button>
       <button class="btn btn-ghost" onclick="openModal('manual')">＋ 手动录入</button>
       <span class="spacer"></span>
     </div>
-    <div class="hint">💡 提取支持常见写法：<code>地址：</code> <code>营业时间：</code> <code>人均：</code> <code>店名：</code>，以及"📍 / 🕐 / 💰"emoji 形式。提取结果可再编辑。</div>
+    <div class="hint">💡 小红书 App 点「分享」→ 直接粘贴到这里，链接和正文自动拆分。<code>地址：</code> <code>营业时间：</code> <code>人均：</code> 及 📍 / 🕐 / 💰 emoji 形式都能识别。结果可再编辑。</div>
   </div>
+
+  <!-- 云同步设置（一次性配置） -->
+  <details class="card settings-card" id="settings-panel">
+    <summary><span>☁️ 云同步设置（Mac ↔ 手机数据互通，一次性配置）</span></summary>
+    <div class="settings-body">
+      <div class="field">
+        <label>Supabase 项目 URL</label>
+        <input type="text" id="sb-url" placeholder="https://你的项目.supabase.co" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Supabase anon public key（公开密钥，仅用于客户端）</label>
+        <input type="text" id="sb-key" placeholder="eyJhbGciOi...（Settings → API → anon public）" autocomplete="off">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost btn-sm" onclick="saveSbConfig()">保存配置</button>
+        <span class="hint" id="sb-config-state" style="margin:0"></span>
+      </div>
+      <div class="hint">配置步骤见 <code>SETUP.md</code>：建 Supabase 项目 → SQL Editor 跑 <code>supabase-schema.sql</code> → 填 URL 和 anon key。填好后注册账号即可开始同步，Mac 和手机共用同一份数据。</div>
+    </div>
+  </details>
 
   <!-- 列表 -->
   <div class="toolbar">
@@ -178,6 +233,27 @@ XX 日料店打卡！
   <div class="filter-chips" id="filter-chips"></div>
   <div class="card" id="entry-list"></div>
 
+</div>
+
+<!-- 登录弹窗 -->
+<div class="modal-mask" id="modal-login">
+  <div class="modal" style="max-width:420px">
+    <h3><span id="login-title">登录</span> <span class="close" onclick="closeModal('login')">✕</span></h3>
+    <div class="field">
+      <label>邮箱</label>
+      <input type="text" id="lg-email" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="field">
+      <label>密码</label>
+      <input type="password" id="lg-pass" placeholder="至少 6 位" autocomplete="current-password">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="lg-submit" onclick="submitAuth()">登录</button>
+      <span class="spacer"></span>
+      <button class="btn btn-ghost" id="lg-switch" onclick="switchAuthMode()">没有账号？注册</button>
+    </div>
+    <div class="hint" id="lg-hint"></div>
+  </div>
 </div>
 
 <!-- 编辑弹窗 -->
@@ -260,6 +336,229 @@ function save(){
 }
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
+// ============ 云同步（Supabase：账号 + 数据库 + Mac/手机数据互通） ============
+const SB_CFG_KEY='tripclip.supabase.v1';
+let sb=null;            // supabase 客户端
+let sbUser=null;        // 当前登录用户
+let authMode='login';   // login | signup
+const syncQueue=[];     // 待执行的操作队列
+let pendingOps=[];      // 失败的待重试操作
+let syncBusy=false;
+
+function getSbConfig(){ try{ return JSON.parse(localStorage.getItem(SB_CFG_KEY))||null; }catch(e){ return null; } }
+function saveSbConfig(){
+  const url=document.getElementById('sb-url').value.trim();
+  const key=document.getElementById('sb-key').value.trim();
+  if(!url||!key){ toast('URL 和 anon key 都要填'); return; }
+  try{ localStorage.setItem(SB_CFG_KEY, JSON.stringify({url,key})); }catch(e){}
+  const st=document.getElementById('sb-config-state');
+  if(st) st.textContent='✓ 配置已保存'+(sb?'，已连接':'');
+  toast('云同步配置已保存');
+  initSupabase();
+}
+function initSupabase(){
+  if(typeof supabase==='undefined'){ console.warn('supabase SDK 未加载'); return false; }
+  const cfg=getSbConfig();
+  if(!cfg) return false;
+  try{
+    sb=supabase.createClient(cfg.url, cfg.key, {
+      auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
+    });
+    sb.auth.onAuthStateChange((ev, session)=>{
+      sbUser = session ? session.user : null;
+      updateAuthUI();
+      if(sbUser && (ev==='SIGNED_IN' || ev==='TOKEN_REFRESHED')) pullFromCloud(true);
+    });
+    // 恢复已有会话（刷新页面后仍保持登录）
+    sb.auth.getSession().then(({data})=>{
+      sbUser = data.session ? data.session.user : null;
+      updateAuthUI();
+      if(sbUser) pullFromCloud(false);
+    }).catch(()=>{});
+    return true;
+  }catch(e){ console.error('Supabase init failed:', e); return false; }
+}
+function openSettings(){ const p=document.getElementById('settings-panel'); if(p) p.open=true; }
+function onAuthChip(){
+  if(sbUser) return;
+  if(!sb){ openSettings(); toast('请先在「☁️ 云同步设置」填写 Supabase 项目信息（见 SETUP.md）'); return; }
+  openModal('login');
+}
+function switchAuthMode(){
+  authMode = authMode==='login' ? 'signup' : 'login';
+  document.getElementById('login-title').textContent = authMode==='login' ? '登录' : '注册账号';
+  document.getElementById('lg-submit').textContent = authMode==='login' ? '登录' : '注册';
+  document.getElementById('lg-switch').textContent = authMode==='login' ? '没有账号？注册' : '已有账号？登录';
+  document.getElementById('lg-hint').textContent='';
+}
+async function submitAuth(){
+  if(!sb){ toast('请先配置云同步'); return; }
+  const email=document.getElementById('lg-email').value.trim();
+  const pass=document.getElementById('lg-pass').value;
+  if(!email||!pass){ toast('邮箱和密码都要填'); return; }
+  if(pass.length<6){ toast('密码至少 6 位'); return; }
+  const btn=document.getElementById('lg-submit');
+  btn.disabled=true;
+  try{
+    const res = authMode==='login'
+      ? await sb.auth.signInWithPassword({email, password:pass})
+      : await sb.auth.signUp({email, password:pass});
+    if(res.error) throw res.error;
+    closeModal('login');
+    if(authMode==='signup'){
+      toast('✓ 注册成功，正在连接云端…');
+      document.getElementById('lg-email').value=''; document.getElementById('lg-pass').value='';
+      authMode='login'; switchAuthMode();
+    }
+    // SIGNED_IN 事件触发 pullFromCloud
+  }catch(e){
+    const hint=document.getElementById('lg-hint');
+    if(hint) hint.textContent='✗ '+(e.message||'操作失败');
+    toast('登录失败：'+(e.message||'未知错误'));
+  }finally{
+    btn.disabled=false;
+  }
+}
+function logout(){
+  if(sb) sb.auth.signOut().catch(()=>{});
+  sbUser=null; updateAuthUI();
+  toast('已退出登录，数据保留在云端');
+}
+function updateAuthUI(){
+  const chip=document.getElementById('auth-chip');
+  const bar=document.getElementById('auth-bar');
+  if(!chip||!bar) return;
+  if(sbUser){
+    const u=document.getElementById('auth-user'); if(u) u.textContent='👤 '+sbUser.email;
+    chip.classList.add('logged-in'); chip.style.display='none';
+    bar.style.display='flex';
+    setSyncState('','');
+  }else{
+    const l=document.getElementById('auth-label'); if(l) l.textContent='未登录';
+    chip.classList.remove('logged-in'); chip.style.display='';
+    bar.style.display='none';
+  }
+}
+function setSyncState(text, cls){
+  const el=document.getElementById('sync-state');
+  if(!el) return;
+  el.textContent=text||'';
+  el.className='sync-state'+(cls?' '+cls:'');
+}
+
+// ---- 字段映射：本地条目(驼峰) ↔ 数据库行(snake_case) ----
+function toDB(e){
+  return {
+    name:e.name||'', type:e.type||'', tags:e.tags||[],
+    address:e.address||'', hours:e.hours||'', price:e.price||'',
+    cancel:e.cancel||'', date_time:e.dateTime||'', from_to:e.fromTo||'',
+    code:e.code||'', extra:e.extra||'', note:e.note||'',
+    link:e.link||'', source:e.source||'', pending:!!e.pending
+  };
+}
+function fromDB(row){
+  return {
+    id:row.id, name:row.name, type:row.type, tags:row.tags||[],
+    address:row.address, hours:row.hours, price:row.price,
+    cancel:row.cancel, dateTime:row.date_time, fromTo:row.from_to,
+    code:row.code, extra:row.extra, note:row.note,
+    link:row.link, source:row.source, pending:row.pending,
+    createdAt:new Date(row.created_at).getTime()
+  };
+}
+
+// ---- 云端单条操作 ----
+async function cloudInsert(entry){
+  const { data, error } = await sb.from('entries').insert(toDB(entry)).select();
+  if(error) throw error;
+  if(data && data[0]) entry.id = data[0].id; // 回填云端生成的 uuid
+  return data;
+}
+async function cloudUpdate(entry){
+  if(!entry.id) throw new Error('缺少云端 id');
+  const { error } = await sb.from('entries').update(toDB(entry)).eq('id', entry.id);
+  if(error) throw error;
+}
+async function cloudDelete(id){
+  if(!id) return;
+  const { error } = await sb.from('entries').delete().eq('id', id);
+  if(error) throw error;
+}
+
+// ---- 同步队列：本地改动 → 串行推送云端；失败进待重试 ----
+function enqueueSync(op){
+  if(!sbUser) return; // 未登录 = 纯本地模式
+  syncQueue.push(op);
+  drainSync();
+}
+async function drainSync(){
+  if(syncBusy) return;
+  syncBusy=true;
+  while(syncQueue.length){
+    const op=syncQueue.shift();
+    try{
+      if(op.op==='insert'){ await cloudInsert(op.entry); }
+      else if(op.op==='update'){ await cloudUpdate(op.entry); }
+      else { await cloudDelete(op.id); }
+    }catch(e){
+      pendingOps.push(op);
+      console.warn('云端同步失败，已加入待重试:', e.message);
+    }
+  }
+  syncBusy=false;
+  refreshSyncState();
+}
+function refreshSyncState(){
+  if(pendingOps.length>0) setSyncState('⚠ '+pendingOps.length+' 条待同步（点「重新同步」重试）','warn');
+  else setSyncState('✓ 已同步','ok');
+}
+function retrySync(){
+  if(!sb || !sbUser){ toast('请先登录'); return; }
+  if(pendingOps.length===0){ toast('没有待同步的条目，已从云端刷新'); pullFromCloud(false); return; }
+  const ops=pendingOps.slice(); pendingOps=[];
+  ops.forEach(o=>syncQueue.push(o));
+  drainSync();
+  toast('正在重试 '+ops.length+' 条待同步…');
+}
+
+// ---- 登录后拉取云端数据 / 首次迁移 ----
+async function pullFromCloud(askMigrate){
+  if(!sb || !sbUser) return;
+  setSyncState('正在同步…','');
+  try{
+    const { data, error } = await sb.from('entries').select('*').order('created_at',{ascending:false});
+    if(error) throw error;
+    const cloud=(data||[]).map(fromDB);
+    if(cloud.length>0){
+      entries=cloud; save(); render();
+      setSyncState('✓ 已同步 '+cloud.length+' 条','ok');
+      if(askMigrate) toast('已从云端加载 '+cloud.length+' 条数据');
+    }else if(entries.length>0 && askMigrate){
+      if(confirm('检测到本机有 '+entries.length+' 条收藏。是否上传到云端，实现 Mac 与手机数据互通？\n\n（点「取消」则不上传，本机数据保留，但其他设备看不到）')){
+        await migrateToCloud();
+      }else{
+        setSyncState('✓ 已同步（0 条）','ok');
+      }
+    }else{
+      setSyncState('✓ 已同步（0 条）','ok');
+    }
+  }catch(e){
+    setSyncState('✗ 云端加载失败：'+(e.message||'网络错误')+'（本机数据不受影响）','warn');
+  }
+}
+async function migrateToCloud(){
+  const batch=entries.slice();
+  setSyncState('正在上传本地数据…','');
+  let ok=0, fail=0;
+  for(const e of batch){
+    try{ await cloudInsert(e); ok++; }
+    catch(err){ fail++; }
+  }
+  save(); render();
+  setSyncState(ok>0 ? '✓ 已上传 '+ok+' 条'+(fail?'，'+fail+' 条失败':'') : '✗ 上传失败，请检查网络','ok');
+  toast(fail>0 ? '上传完成：成功 '+ok+' 条，失败 '+fail+' 条' : '✓ 已上传 '+ok+' 条到云端');
+}
+
 // ============ 行程类型元数据 ============
 const TYPE_META={
   '机票': {icon:'✈️', dateTime:'起飞时间', fromTo:'出发地 → 目的地', code:'航班号', extra:'订单号 / 座位号', cancel:'免费退改截止'},
@@ -298,12 +597,36 @@ function setManualType(t){
 }
 
 // ============ 智能提取 ============
+// 从混合文本中拆分 URL 与正文
+function parseMixedInput(raw){
+  const link='';
+  let text=raw;
+  // 提取小红书链接
+  let m=raw.match(/https?:\/\/(?:www\.xiaohongshu\.com\/explore\/[a-zA-Z0-9]+|xhslink\.com\/[a-zA-Z0-9]+)/);
+  if(!m) m=raw.match(/https?:\/\/[^\s）)）]+/); // fallback: 任意 URL
+  const extractedLink = m ? m[0] : '';
+  // 清除推广尾部 & 纯链接行
+  const promoPatterns=[
+    /复制此信息.*?(?:打开|查看).*/g,
+    /(🔗|🔗)\s*https?:\/\/\S+/g,
+    /^https?:\/\/\S+$/gm,
+    /#(?:复制|打开|小红书).*$/gm
+  ];
+  text=raw;
+  promoPatterns.forEach(p=>{ text=text.replace(p,''); });
+  // 去掉 URL 行（含链接但不是正文）
+  text=text.replace(/https?:\/\/[^\s]*/g, extractedLink ? '' : '$&');
+  // 清理多余空行
+  text=text.replace(/\n{3,}/g,'\n\n').trim();
+  return { link: extractedLink, text };
+}
+
 function extractFromText(text){
   const r = { name:'', type:'', price:'', address:'', hours:'', note:'' };
   if(!text) return r;
   const lines = text.split(/\n+/).map(s=>s.trim()).filter(Boolean);
-  const pick = (patterns, defaultVal='') => {
-    for(const line of lines){
+  const pick = (patterns, defaultVal='', srcLines=lines) => {
+    for(const line of srcLines){
       for(const p of patterns){
         const m = line.match(p);
         if(m && m[1] && m[1].trim()) return m[1].trim().replace(/[。，,；;：:]+$/,'');
@@ -311,27 +634,46 @@ function extractFromText(text){
     }
     return defaultVal;
   };
+  // 名称提取：跳过 hashtag 行和 URL 行
+  const nameLines = lines.filter(l=>!l.startsWith('#') && !/^https?:/.test(l));
   r.name = pick([
     /^(?:店名|名称|店铺|店)[：:]\s*(.+)/,
     /^(?:【|\[)(.+?)(?:】|\])(?:打卡|探店|分享)?/,
-    /^(.+?(?:店|馆|居酒屋|咖啡|餐厅|甜品|博物馆|美术馆|寺|公园|楼|屋|堂|社|汤|所|站|面|吧|舍|山|谷|滩|岛))[ \t]*(?:打卡|探店|分享|攻略|必去|！|!|。)*$/
-  ]);
+    // 带竖线分隔符的标题：东京必吃｜一兰拉面 → 取后半段
+    /^[^｜|│\n]+[｜|│]\s*(.+)/,
+    // 以常见后缀结尾的店名
+    /^(.+?(?:店|馆|居酒屋|咖啡|餐厅|甜品|博物馆|美术馆|寺|公园|楼|屋|堂|社|汤|所|站|面|吧|舍|山|谷|滩|岛|岩|洞|塔|桥|河|湖|湾|市场|百货|房|院))[ \t]*(?:打卡|探店|分享|攻略|必去|！|!|。)*$/
+  ], '', nameLines);
+  // 如果名称没匹配到，取第一行（跳过 hashtag / URL 行）
+  if(!r.name){
+    const firstNonTag = nameLines[0];
+    if(firstNonTag) r.name = firstNonTag.replace(/[｜|│].*$/,'').replace(/^(?:【|\[)(.+?)(?:】|\]).*$/,'$1').trim().slice(0,30);
+  }
   r.type = pick([/^(?:类型|分类|类别)[：:]\s*(.+)/]);
-  r.price = pick([/^(?:人均|价格|花费)[：: ]\s*(.+)/, /(?:人均|价格|花费)[：: ]\s*(.+)/, /^人均\s*(.+)/]);
+  r.price = pick([
+    /^(?:人均|价格|花费)[：: ]\s*(.+)/,
+    /(?:人均|价格|花费)[：: ]\s*(.+)/,
+    /^💰\s*(?:人均|价格|花费)[:： ]?\s*(.+)/,
+    /^💰\s*(.+)/,
+    /💰\s*(?:人均|价格|花费)[:： ]?\s*(.+)/,
+    /💰\s*(.+)/,
+    /^人均\s*(.+)/
+  ]);
   r.address = pick([
     /^(?:地址|位置|📍|坐标)[：:]\s*(.+)/,
     /📍\s*(.+)/,
     /^(?:地址|位置)[：:]\s*(.+)/,
-    /([\u4e00-\u9fa5]{2,}(?:市|区|县|路|街|道|镇|乡|号|站|机场|港|区)[^\s，。]{0,20})/
+    /([\u4e00-\u9fa5]{2,}(?:都|府|县|市|区|町|村|路|街|道|镇|乡|号|站|机场|港|区|丁目|番|条)[^\s，。]{0,30})/
   ]);
   r.hours = pick([
-    /^(?:营业时间|时间|🕐)[：:]\s*(.+)/,
+    /^(?:营业时间|时间|🕐|开放时间|营业)[：:]\s*(.+)/,
     /🕐\s*(.+)/,
-    /(?:营业时间)[：:]\s*(.+)/,
-    /(\d{1,2}[:：]\d{2}\s*[-~至]\s*\d{1,2}[:：]\d{2}(?:\s*[^，。\n]{0,10})?)/,
+    /(?:营业时间|开放时间)[：:]\s*(.+)/,
+    /(\d{1,2}[:：]\d{2}\s*[-~至～]\s*\d{1,2}[:：]\d{2}(?:\s*[^，。\n]{0,10})?)/,
     /(周[一二三四五六日天]|星期[一二三四五六日天])[^，。\n]{0,15}/
   ]);
-  r.note = lines.find(l=>/推荐|必点|攻略|Tips|小贴士|注意|建议/.test(l)) || '';
+  // 备注优先取含推荐词的行，否则取非结构化的正文行
+  r.note = lines.find(l=>/推荐|必点|攻略|Tips|小贴士|注意|建议|特色|招牌/.test(l)) || '';
   return r;
 }
 
@@ -346,10 +688,15 @@ function guessFromLink(link){
 
 // ============ 主流程：提取并保存 ============
 function extractAndAdd(){
-  const link = document.getElementById('in-link').value.trim();
-  const text = document.getElementById('in-text').value.trim();
-  if(!link && !text){ toast('先粘贴链接或正文内容'); return; }
-  const r = extractFromText(text);
+  const raw = document.getElementById('in-text').value.trim();
+  if(!raw){ toast('先粘贴小红书分享文本或帖子正文'); return; }
+  const { link, text } = parseMixedInput(raw);
+  // 只有链接没有正文 → 提示用户补充正文
+  if(link && !text){
+    toast('检测到链接但没有正文。请从小红书「分享」复制全文（含标题+描述）再粘贴');
+    return;
+  }
+  const r = extractFromText(text || raw);
   const type = r.type || guessFromLink(link);
   const entry = {
     id: uid(), name: r.name || '未命名地点', type, price:r.price, address:r.address,
@@ -358,17 +705,19 @@ function extractAndAdd(){
     createdAt: Date.now(), pending: !!(link && !r.address)
   };
   entries.unshift(entry);
-  save();
-  document.getElementById('in-link').value='';
+  save(); enqueueSync({op:'insert', entry});
   document.getElementById('in-text').value='';
   toast(r.name ? '已提取并保存：「' + r.name + '」' : '已保存（未识别到名称，可编辑补全）');
 }
 
 // ============ 弹窗管理 ============
 let editingId=null;
+const MODAL_MAP={edit:'modal-edit',manual:'modal-manual',login:'modal-login'};
 function openModal(kind){
   if(kind==='edit'){
     document.getElementById('modal-edit').classList.add('open');
+  }else if(kind==='login'){
+    document.getElementById('modal-login').classList.add('open');
   }else{
     ['m-name','m-type','m-price','m-address','m-datetime','m-code','m-fromto','m-extra','m-cancel','m-tags','m-link'].forEach(i=>document.getElementById(i).value='');
     setManualType('其他');
@@ -376,7 +725,8 @@ function openModal(kind){
   }
 }
 function closeModal(kind){
-  document.getElementById(kind==='edit'?'modal-edit':'modal-manual').classList.remove('open');
+  const el=document.getElementById(MODAL_MAP[kind]||'modal-manual');
+  if(el) el.classList.remove('open');
 }
 function editEntry(id){
   const e = entries.find(x=>x.id===id); if(!e) return;
@@ -412,7 +762,8 @@ function saveEdit(){
   e.tags=parseTags(document.getElementById('e-tags').value);
   e.link=document.getElementById('e-link').value.trim();
   e.pending=false;
-  save(); closeModal('edit'); toast('已保存');
+  save(); enqueueSync({op:'update', entry:e});
+  closeModal('edit'); toast('已保存');
 }
 function saveManual(){
   const name=document.getElementById('m-name').value.trim();
@@ -433,16 +784,34 @@ function saveManual(){
     source:'manual', createdAt:Date.now(), pending:false
   };
   entries.unshift(entry);
-  save(); closeModal('manual'); toast('已添加「'+name+'」');
+  save(); enqueueSync({op:'insert', entry});
+  closeModal('manual'); toast('已添加「'+name+'」');
 }
 function deleteEntry(id){
   if(!confirm('确定删除这条记录？')) return;
+  const delId=id;
   entries=entries.filter(x=>x.id!==id);
-  closeModal('edit'); save(); toast('已删除');
+  closeModal('edit'); save(); enqueueSync({op:'delete', id:delId}); toast('已删除');
+}
+function duplicateEntry(id){
+  const e = entries.find(x=>x.id===id); if(!e) return;
+  const copy = Object.assign({}, e, {
+    id: uid(),
+    name: (e.name || '未命名地点') + '（副本）',
+    tags: [...(e.tags || [])],
+    createdAt: Date.now()
+  });
+  entries.unshift(copy);
+  save(); enqueueSync({op:'insert', entry:copy});
+  editEntry(copy.id);
+  toast('已复制「' + copy.name + '」，可修改后保存');
 }
 function clearAll(){
   if(!confirm('确定清空全部 '+entries.length+' 条收藏？此操作不可恢复！')) return;
-  entries=[]; save(); toast('已清空');
+  const ids=entries.map(e=>e.id);
+  entries=[]; save();
+  ids.forEach(id=>enqueueSync({op:'delete', id}));
+  toast('已清空');
 }
 function parseTags(s){ return s.split(/[,，、\s]+/).map(t=>t.trim()).filter(Boolean); }
 
@@ -537,7 +906,9 @@ function render(){
       <div class="actions">
         <a class="linkout" href="${mapHref}" target="_blank" rel="noopener">🗺 地图</a>
         ${e.link?`<a class="linkout" href="${esc(e.link)}" target="_blank" rel="noopener">🔗 原文</a>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="duplicateEntry('${e.id}')">复制</button>
         <button class="btn btn-ghost btn-sm" onclick="editEntry('${e.id}')">编辑</button>
+        <button class="btn btn-ghost btn-sm btn-del" onclick="deleteEntry('${e.id}')">删除</button>
       </div>
     </div>`;
   }).join('');
@@ -622,8 +993,16 @@ function toast(msg){
 }
 
 // ============ 初始化 ============
-const VERSION='v0.3';
+const VERSION='v0.5';
 bindTypePick('m-type-pick','m-type','m');
+// 云同步初始化：预填配置 + 恢复会话
+const _sbCfg=getSbConfig();
+if(_sbCfg){
+  const u=document.getElementById('sb-url'), k=document.getElementById('sb-key');
+  if(u) u.value=_sbCfg.url;
+  if(k) k.value=_sbCfg.key;
+}
+initSupabase();
 // 地址复制：事件委托（data-copy 属性触发）
 document.getElementById('entry-list').addEventListener('click',function(ev){
   const el=ev.target.closest('[data-copy]');
@@ -631,6 +1010,6 @@ document.getElementById('entry-list').addEventListener('click',function(ev){
 });
 render();
 </script>
-<div class="footer">行前夹 <span class="ver">v0.3</span> · 纯本地工具，数据存于浏览器 · 建议定期导出备份</div>
+<div class="footer">行前夹 <span class="ver">v0.5</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
 </body>
 </html>

@@ -32,9 +32,8 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html _site/index.html
-          # 以后新增静态资源（css/js/图片等）在此追加，例如：
-          # cp style.css _site/
-          # cp -r assets _site/
+          # 云同步 SDK（v0.5 必需，登录/数据库依赖）
+          cp -r vendor _site/vendor
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
