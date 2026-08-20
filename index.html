@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>行前夹 TripClip v0.6.1 · 出行前资料收集</title>
+<title>行前夹 TripClip v0.6.2 · 出行前资料收集</title>
 <script src="vendor/supabase.min.js"></script>
 <style>
 :root{
@@ -152,7 +152,7 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
     <div class="brand">
       <div class="logo">🧭</div>
       <div>
-        <h1>行前夹 <span class="ver-badge">v0.6.1</span></h1>
+        <h1>行前夹 <span class="ver-badge">v0.6.2</span></h1>
         <small>TRIP CLIP · 出行前资料收集</small>
       </div>
     </div>
@@ -214,24 +214,64 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
 
 </div>
 
-<!-- 登录弹窗 -->
+<!-- 登录弹窗（登录 / 注册 / 忘记密码 三视图） -->
 <div class="modal-mask" id="modal-login">
   <div class="modal" style="max-width:420px">
-    <h3><span id="login-title">登录</span> <span class="close" onclick="closeModal('login')">✕</span></h3>
+    <div id="login-view">
+      <h3><span id="login-title">登录</span> <span class="close" onclick="closeModal('login')">✕</span></h3>
+      <div class="field">
+        <label>邮箱</label>
+        <input type="text" id="lg-email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <label>密码</label>
+        <input type="password" id="lg-pass" placeholder="至少 6 位" autocomplete="current-password">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="lg-submit" onclick="submitAuth()">登录</button>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost" id="lg-switch" onclick="switchAuthMode()">没有账号？注册</button>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn btn-link btn-sm" id="lg-forgot" onclick="switchToForgot()">忘记密码？</button>
+      </div>
+      <div class="hint" id="lg-hint"></div>
+    </div>
+    <div id="forgot-view" style="display:none">
+      <h3>重置密码 <span class="close" onclick="closeModal('login')">✕</span></h3>
+      <div class="field">
+        <label>注册邮箱</label>
+        <input type="text" id="fg-email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="fg-submit" onclick="sendResetEmail()">发送重置邮件</button>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost" onclick="backToLogin()">返回登录</button>
+      </div>
+      <div class="hint" id="fg-hint"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 设置新密码弹窗（从邮件跳回后出现） -->
+<div class="modal-mask" id="modal-reset-pass">
+  <div class="modal" style="max-width:420px">
+    <h3>设置新密码 <span class="close" onclick="closeModal('reset-pass')">✕</span></h3>
+    <div class="hint" style="margin-top:0">已通过邮件确认身份，请设置一个新密码。</div>
     <div class="field">
-      <label>邮箱</label>
-      <input type="text" id="lg-email" placeholder="you@example.com" autocomplete="email">
+      <label>新密码</label>
+      <input type="password" id="rp-pass" placeholder="至少 6 位" autocomplete="new-password">
     </div>
     <div class="field">
-      <label>密码</label>
-      <input type="password" id="lg-pass" placeholder="至少 6 位" autocomplete="current-password">
+      <label>确认新密码</label>
+      <input type="password" id="rp-pass2" placeholder="再次输入" autocomplete="new-password">
     </div>
     <div class="btn-row">
-      <button class="btn btn-primary" id="lg-submit" onclick="submitAuth()">登录</button>
+      <button class="btn btn-primary" id="rp-submit" onclick="submitNewPassword()">确认修改</button>
       <span class="spacer"></span>
-      <button class="btn btn-ghost" id="lg-switch" onclick="switchAuthMode()">没有账号？注册</button>
+      <button class="btn btn-ghost" onclick="closeModal('reset-pass')">取消</button>
     </div>
-    <div class="hint" id="lg-hint"></div>
+    <div class="hint" id="rp-hint"></div>
   </div>
 </div>
 
@@ -350,6 +390,11 @@ function initSupabase(){
     sb.auth.onAuthStateChange((ev, session)=>{
       sbUser = session ? session.user : null;
       updateAuthUI();
+      if(ev==='PASSWORD_RECOVERY'){
+        // 从重置邮件跳回：身份已确认，弹出设置新密码
+        openResetPass();
+        return;
+      }
       if(sbUser && (ev==='SIGNED_IN' || ev==='TOKEN_REFRESHED')) pullFromCloud(true);
     });
     // 恢复已有会话（刷新页面后仍保持登录）
@@ -372,6 +417,62 @@ function switchAuthMode(){
   document.getElementById('lg-submit').textContent = authMode==='login' ? '登录' : '注册';
   document.getElementById('lg-switch').textContent = authMode==='login' ? '没有账号？注册' : '已有账号？登录';
   document.getElementById('lg-hint').textContent='';
+}
+// ---- 忘记密码：登录视图 ↔ 重置视图 切换 ----
+function switchToForgot(){
+  document.getElementById('login-view').style.display='none';
+  document.getElementById('forgot-view').style.display='';
+  document.getElementById('fg-email').value='';
+  document.getElementById('fg-hint').textContent='';
+}
+function backToLogin(){
+  document.getElementById('forgot-view').style.display='none';
+  document.getElementById('login-view').style.display='';
+  document.getElementById('lg-hint').textContent='';
+}
+// 发重置邮件：邮件里的链接会带 code 跳回本应用
+async function sendResetEmail(){
+  if(!sb){ toast('云端正在初始化，请稍后重试'); return; }
+  const email=document.getElementById('fg-email').value.trim();
+  if(!email){ toast('请填写邮箱'); return; }
+  const btn=document.getElementById('fg-submit');
+  btn.disabled=true;
+  try{
+    // redirectTo 必须是 Supabase 后台已配置的 Redirect URL（当前域名 + 路径）
+    const redirectTo=location.origin+location.pathname;
+    const res=await sb.auth.resetPasswordForEmail(email,{redirectTo});
+    if(res.error) throw res.error;
+    document.getElementById('fg-hint').textContent='✓ 重置邮件已发送，请到邮箱点击链接修改密码（若未收到请检查垃圾箱）';
+    toast('重置邮件已发送');
+  }catch(e){
+    document.getElementById('fg-hint').textContent='✗ '+(e.message||'发送失败');
+    toast('发送失败：'+(e.message||'未知错误'));
+  }finally{
+    btn.disabled=false;
+  }
+}
+// 从邮件跳回后（PASSWORD_RECOVERY 事件），提交新密码
+async function submitNewPassword(){
+  if(!sb){ toast('云端正在初始化，请稍后重试'); return; }
+  const p1=document.getElementById('rp-pass').value;
+  const p2=document.getElementById('rp-pass2').value;
+  if(p1.length<6){ document.getElementById('rp-hint').textContent='✗ 新密码至少 6 位'; toast('新密码至少 6 位'); return; }
+  if(p1!==p2){ document.getElementById('rp-hint').textContent='✗ 两次输入的新密码不一致'; toast('两次输入的新密码不一致'); return; }
+  const btn=document.getElementById('rp-submit');
+  btn.disabled=true;
+  try{
+    const res=await sb.auth.updateUser({password:p1});
+    if(res.error) throw res.error;
+    document.getElementById('rp-hint').textContent='✓ 密码已修改，请使用新密码登录';
+    toast('✓ 密码修改成功');
+    document.getElementById('rp-pass').value=''; document.getElementById('rp-pass2').value='';
+    setTimeout(()=>closeModal('reset-pass'), 1500);
+  }catch(e){
+    document.getElementById('rp-hint').textContent='✗ '+(e.message||'修改失败');
+    toast('修改失败：'+(e.message||'未知错误'));
+  }finally{
+    btn.disabled=false;
+  }
 }
 async function submitAuth(){
   if(!sb){ toast('请先配置云同步'); return; }
@@ -703,12 +804,19 @@ function extractAndAdd(){
 
 // ============ 弹窗管理 ============
 let editingId=null;
-const MODAL_MAP={edit:'modal-edit',manual:'modal-manual',login:'modal-login'};
+// 从重置邮件跳回：身份已确认，打开设置新密码弹窗
+function openResetPass(){ openModal('reset-pass'); }
+const MODAL_MAP={edit:'modal-edit',manual:'modal-manual',login:'modal-login','reset-pass':'modal-reset-pass'};
 function openModal(kind){
   if(kind==='edit'){
     document.getElementById('modal-edit').classList.add('open');
   }else if(kind==='login'){
+    backToLogin();
     document.getElementById('modal-login').classList.add('open');
+  }else if(kind==='reset-pass'){
+    document.getElementById('rp-pass').value=''; document.getElementById('rp-pass2').value='';
+    document.getElementById('rp-hint').textContent='';
+    document.getElementById('modal-reset-pass').classList.add('open');
   }else{
     ['m-name','m-type','m-price','m-address','m-datetime','m-code','m-fromto','m-extra','m-cancel','m-tags','m-link'].forEach(i=>document.getElementById(i).value='');
     setManualType('其他');
@@ -984,7 +1092,7 @@ function toast(msg){
 }
 
 // ============ 初始化 ============
-const VERSION='v0.6.1';
+const VERSION='v0.6.2';
 bindTypePick('m-type-pick','m-type','m');
 // 云同步初始化：恢复会话
 initSupabase();
@@ -995,6 +1103,6 @@ document.getElementById('entry-list').addEventListener('click',function(ev){
 });
 render();
 </script>
-<div class="footer">行前夹 <span class="ver">v0.6.1</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
+<div class="footer">行前夹 <span class="ver">v0.6.2</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
 </body>
 </html>

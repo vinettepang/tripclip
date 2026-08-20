@@ -104,6 +104,10 @@ Supabase 新项目默认的 Site URL 是 `http://localhost:3000`，不改的话�
 **Q：anon key 公开了安全吗？**  
 安全。key 只是"入口凭证"，真正拦数据的是数据库的行级安全策略（RLS）——未登录用户连表都访问不了，登录用户也只能读写自己的行。
 
+**Q：忘记密码怎么处理？**  
+应用内登录框下方有「忘记密码？」：输入邮箱 → 收到重置邮件 → 点邮件里的链接会跳回应用，自动弹出「设置新密码」界面。
+依赖第 4 步的 **Redirect URLs**（`https://你的用户名.github.io/tripclip/**`）——自建项目只要配过通配符就能用，无需额外配置。邮件未收到时检查垃圾箱；链接 1 小时内有效。
+
 **Q：注册邮件里的确认链接打不开 / 是 localhost？**  
 Supabase 新项目默认 Site URL 是 `http://localhost:3000`。去 **Authentication → URL Configuration** 把 **Site URL** 改成线上地址（如 `https://你的用户名.github.io/tripclip/`），并添加 Redirect URL `https://你的用户名.github.io/tripclip/**`，保存后重新注册即可。已发出的旧邮件链接不会变，需重新注册。
 
