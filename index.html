@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>行前夹 TripClip v0.6.8 · 出行前资料收集</title>
+<title>行前夹 TripClip v0.6.9 · 出行前资料收集</title>
 <script src="vendor/supabase.min.js"></script>
 <style>
 :root{
@@ -51,6 +51,11 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
 .btn-sm{padding:5px 12px;font-size:12px;border-radius:8px}
 .btn-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .btn-row .spacer{flex:1}
+.img-preview{display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px 12px;background:#f7f4ee;border:1px solid var(--line);border-radius:10px;font-size:12px;color:var(--sub)}
+.img-preview img{width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.img-preview .img-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.img-preview .img-remove{background:none;border:none;cursor:pointer;font-size:14px;color:var(--sub);padding:2px 6px}
+.img-preview .img-remove:hover{color:#c0392b}
 .row{display:flex;gap:10px}
 .row .field{flex:1}
 /* extraction preview */
@@ -160,7 +165,7 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
     <div class="brand">
       <div class="logo">🧭</div>
       <div>
-        <h1>行前夹 <span class="ver-badge">v0.6.8</span></h1>
+        <h1>行前夹 <span class="ver-badge">v0.6.9</span></h1>
         <small>TRIP CLIP · 出行前资料收集</small>
       </div>
     </div>
@@ -203,16 +208,23 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
     <div class="btn-row">
       <button class="btn btn-primary" id="btn-extract" onclick="extractAndAdd()">✨ 智能提取</button>
       <button class="btn btn-ghost" onclick="openModal('manual')">＋ 手动录入</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('img-input').click()">🖼 传图识别</button>
+      <input type="file" id="img-input" accept="image/*" hidden onchange="onImageSelect(event)">
       <span class="spacer"></span>
       <label class="ai-model-box" for="ai-model">AI 模型
-        <select id="ai-model" title="优先用所选模型，返回无效/失败时自动降级其他模型" aria-label="AI 模型选择">
+        <select id="ai-model" title="优先用所选模型，返回无效/失败时自动降级其他模型；图片识别自动使用视觉模型" aria-label="AI 模型选择">
           <option value="glm-4.6v" selected>glm-4.6v</option>
           <option value="glm-4.6v-flash">glm-4.6v-flash（免费）</option>
           <option value="glm-4-flash">glm-4-flash（免费）</option>
         </select>
       </label>
     </div>
-    <div class="hint">💡 小红书 App 点「分享」→ 直接粘贴到这里，链接和正文自动拆分。<code>地址：</code> <code>营业时间：</code> <code>人均：</code> 及 📍 / 🕐 / 💰 emoji 形式都能识别；已内置 AI（默认 glm-4.6v），口语化文案如「两个人吃了两百多」也能自动理解提取。下方可切换模型（glm-4.6v-flash / glm-4-flash 免费），所选模型失败或返回无效时自动降级，提取结果会先弹出预览，确认后保存。</div>
+    <div class="img-preview" id="img-preview" hidden>
+      <img id="img-thumb" alt="待识别图片">
+      <span class="img-name" id="img-name"></span>
+      <button class="img-remove" onclick="removeImage()" title="移除图片">✕</button>
+    </div>
+    <div class="hint">💡 小红书 App 点「分享」→ 直接粘贴到这里，链接和正文自动拆分。<code>地址：</code> <code>营业时间：</code> <code>人均：</code> 及 📍 / 🕐 / 💰 emoji 形式都能识别；已内置 AI（默认 glm-4.6v），口语化文案如「两个人吃了两百多」也能自动理解提取。也可以 <b>🖼 上传截图</b>（小红书笔记截图 / 门票 / 时刻表照片），AI 直接看图识别文字并提取。下方可切换模型（glm-4.6v-flash / glm-4-flash 免费），失败或返回无效时自动降级，提取结果会先弹出预览，确认后保存。</div>
   </div>
 
   <!-- 列表 -->
@@ -730,12 +742,17 @@ const AI_CFG_KEY='tripclip.ai.v1';
 const DEFAULT_AI_ENDPOINT='https://open.bigmodel.cn/api/paas/v4/chat/completions';
 const DEFAULT_AI_MODEL='glm-4.6v';
 const DEFAULT_AI_KEY='4b872cc310ff4d9684085384d20cdf97.T22sOQ5sp8gH3Cg6';
-const AI_MODELS=['glm-4.6v','glm-4.6v-flash','glm-4-flash']; // 内置可选模型
-function buildModelList(preferred){
-  // 降级顺序：用户所选 → 其余按内置顺序补齐（去重）
-  return [preferred].concat(AI_MODELS.filter(m=>m!==preferred));
+const AI_MODELS=[
+  {model:'glm-4.6v', vision:true},
+  {model:'glm-4.6v-flash', vision:true},
+  {model:'glm-4-flash', vision:false}
+]; // 内置可选模型（vision=true 支持图片输入）
+function buildModelList(preferred, needVision){
+  // 降级顺序：用户所选 → 其余按内置顺序补齐（去重）；needVision 时只保留视觉模型
+  const list = [preferred].concat(AI_MODELS.map(m=>m.model).filter(m=>m!==preferred));
+  return needVision ? list.filter(m=>{ const meta=AI_MODELS.find(x=>x.model===m); return meta && meta.vision; }) : list;
 }
-const AI_SYSTEM_PROMPT='你是一名旅行信息整理助手。用户给你一段小红书笔记（种草文案/攻略/酒店餐厅景点介绍），请提取结构化信息，只输出一个 JSON 对象（不要 markdown 代码块、不要任何解释文字），字段：{"name":"店名或地点名称","type":"餐厅|景点|酒店|机票|火车|门票|其他","price":"人均价格，如：人均¥120/免费","address":"尽量完整的地址或位置描述","hours":"营业/开放时间","note":"推荐菜、亮点、注意事项等要点","tags":["1-3个简短标签"]}。规则：1. name 必须有，无法确定时给最可能的名称（如标题中的主体）；2. 文本没提到的字段留空字符串，绝不编造；3. 口语化信息（如"两个人吃了两百多"→"人均约100"、"在新宿站旁"→"新宿站附近"）转换成简洁中文描述；4. type 只能取给定枚举之一。';
+const AI_SYSTEM_PROMPT='你是一名旅行信息整理助手。用户给你一段小红书笔记（种草文案/攻略/酒店餐厅景点介绍）或一张相关图片（截图/照片），请提取结构化信息，只输出一个 JSON 对象（不要 markdown 代码块、不要任何解释文字），字段：{"name":"店名或地点名称","type":"餐厅|景点|酒店|机票|火车|门票|其他","price":"人均价格，如：人均¥120/免费","address":"尽量完整的地址或位置描述","hours":"营业/开放时间","note":"推荐菜、亮点、注意事项等要点","tags":["1-3个简短标签"],"raw_text":""}。规则：1. name 必须有，无法确定时给最可能的名称（如标题中的主体）；2. 文本或图片里没提到的字段留空字符串，绝不编造；3. 口语化信息（如"两个人吃了两百多"→"人均约100"、"在新宿站旁"→"新宿站附近"）转换成简洁中文描述；4. type 只能取给定枚举之一；5. 输入是图片时，raw_text 必须填写图中全部可见文字原文（含标点与换行，逐字识别，不确定的字符保留原样）；输入是纯文本时 raw_text 填空字符串。';
 function getAIConfig(){
   // 优先读取用户自定义配置（兼容旧版），否则使用内置默认（开箱即用）
   try{
@@ -744,13 +761,18 @@ function getAIConfig(){
   }catch(e){}
   return {endpoint:DEFAULT_AI_ENDPOINT, key:DEFAULT_AI_KEY, model:DEFAULT_AI_MODEL};
 }
-async function callLLM(cfg, userText){
+async function callLLM(cfg, userText, imageDataUrl){
+  // 有图时用多模态 content 数组（OpenAI 兼容格式，智谱 v4 支持）
+  const userContent = imageDataUrl ? [
+    {type:'text', text:userText},
+    {type:'image_url', image_url:{url:imageDataUrl}}
+  ] : userText;
   const res=await fetch(cfg.endpoint, {
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.key},
     body:JSON.stringify({ model:cfg.model, temperature:0.1, messages:[
       {role:'system', content:AI_SYSTEM_PROMPT},
-      {role:'user', content:userText}
+      {role:'user', content:userContent}
     ]})
   });
   if(!res.ok){
@@ -762,9 +784,9 @@ async function callLLM(cfg, userText){
   const content=(data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
   return content;
 }
-async function aiExtract(text, cfg){
+async function aiExtract(text, cfg, imageDataUrl){
   cfg = cfg || getAIConfig();
-  const content=await callLLM(cfg, text);
+  const content=await callLLM(cfg, text, imageDataUrl);
   let s=content.replace(/```(?:json)?\s*/gi,'').replace(/```/g,'').trim();
   const a=s.indexOf('{'), b=s.lastIndexOf('}');
   if(a<0||b<0) throw new Error('AI 返回内容无法解析');
@@ -776,6 +798,7 @@ async function aiExtract(text, cfg){
     address:String(obj.address||'').trim(),
     hours:String(obj.hours||'').trim(),
     note:String(obj.note||'').trim(),
+    rawText:String(obj.raw_text||obj.rawText||'').trim(),
     tags:(Array.isArray(obj.tags)?obj.tags:[]).map(String).slice(0,5)
   };
   if(!result.name) throw new Error('AI 返回结果无效（未识别出名称）');
@@ -883,42 +906,102 @@ function guessFromLink(link){
 }
 
 // ============ 主流程：提取 → 预览确认 → 保存 ============
+let selectedImage=null; // {dataUrl, name} 传图识别用
+function onImageSelect(ev){
+  const file=ev.target.files && ev.target.files[0];
+  ev.target.value=''; // 允许重复选择同一文件
+  if(!file) return;
+  if(!/^image\//.test(file.type)){ toast('请选择图片文件（JPG/PNG 等）'); return; }
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        // 压缩到最长边 1280 的 JPEG，减小 base64 体积（识别足够）
+        const maxSide=1280;
+        let w=img.width, h=img.height;
+        if(w>maxSide || h>maxSide){ const s=maxSide/Math.max(w,h); w=Math.round(w*s); h=Math.round(h*s); }
+        const canvas=document.createElement('canvas');
+        canvas.width=w; canvas.height=h;
+        const ctx=canvas.getContext && canvas.getContext('2d');
+        let dataUrl;
+        if(ctx){ ctx.drawImage(img,0,0,w,h); dataUrl=canvas.toDataURL('image/jpeg',0.85); }
+        else{ dataUrl=reader.result; } // 兜底：环境不支持 canvas 时用原图
+        selectedImage={ dataUrl, name:file.name||'图片' };
+        showImagePreview();
+        toast('图片已添加，点「✨ 智能提取」识别');
+      }catch(e){ console.warn(e); toast('图片处理失败，请换一张试试'); }
+    };
+    img.onerror=()=>{ toast('图片加载失败'); };
+    img.src=reader.result;
+  };
+  reader.onerror=()=>{ toast('读取文件失败'); };
+  reader.readAsDataURL(file);
+}
+function removeImage(){
+  selectedImage=null;
+  const p=document.getElementById('img-preview');
+  if(p) p.hidden=true;
+  toast('已移除图片');
+}
+function clearImageSilent(){
+  selectedImage=null;
+  const p=document.getElementById('img-preview');
+  if(p) p.hidden=true;
+}
+function showImagePreview(){
+  if(!selectedImage) return;
+  const p=document.getElementById('img-preview');
+  if(!p) return;
+  p.hidden=false;
+  const t=document.getElementById('img-thumb'); if(t) t.src=selectedImage.dataUrl;
+  const n=document.getElementById('img-name'); if(n) n.textContent=selectedImage.name;
+}
 function extractAndAdd(){
   const raw = document.getElementById('in-text').value.trim();
-  if(!raw){ toast('先粘贴小红书分享文本或帖子正文'); return; }
+  if(!raw && !selectedImage){ toast('先粘贴小红书分享文本，或上传一张图片'); return; }
   const { link, text } = parseMixedInput(raw);
-  // 只有链接没有正文 → 提示用户补充正文
-  if(link && !text){
+  // 只有链接没有正文 → 提示用户补充正文（纯图片模式不受影响）
+  if(link && !text && !selectedImage){
     toast('检测到链接但没有正文。请从小红书「分享」复制全文（含标题+描述）再粘贴');
     return;
   }
   const content = text || raw;
-  // AI 已内置开箱即用；失败自动降级规则识别
-  runAIExtract(content, link);
+  // AI 已内置开箱即用；失败自动降级（有图走视觉模型链，纯文字失败降级规则识别）
+  runAIExtract(content, link, selectedImage ? selectedImage.dataUrl : null);
 }
-async function runAIExtract(content, link){
+async function runAIExtract(content, link, imageDataUrl){
   const btn=document.getElementById('btn-extract');
+  const imgSel=document.getElementById('ai-model');
   if(btn){ btn.disabled=true; btn.textContent='🤖 AI 提取中…'; }
   try{
     const base=getAIConfig();
-    const sel=document.getElementById('ai-model');
-    const preferred=(sel && sel.value) || base.model || DEFAULT_AI_MODEL;
+    const preferred=(imgSel && imgSel.value) || base.model || DEFAULT_AI_MODEL;
+    const models=buildModelList(preferred, !!imageDataUrl);
     let lastErr='';
-    for(const model of buildModelList(preferred)){
+    for(const model of models){
       if(btn && model!==preferred) btn.textContent='🤖 AI 提取中…（'+model+'）';
       try{
-        const r=await aiExtract(content, {endpoint:base.endpoint, key:base.key, model});
-        openPreview(r, link, 'AI 识别 · '+model, content);
+        const r=await aiExtract(content, {endpoint:base.endpoint, key:base.key, model}, imageDataUrl);
+        // raw 优先用 AI 识别出的图中文字，否则用粘贴正文
+        openPreview(r, link, imageDataUrl ? 'AI 看图识别 · '+model : 'AI 识别 · '+model, r.rawText || content);
+        if(imageDataUrl) clearImageSilent(); // 图片已识别出结果，移除避免误用
         return;
       }catch(e){
         lastErr=e.message||String(e);
         console.warn('AI 模型 '+model+' 提取失败，尝试降级:', lastErr);
       }
     }
-    // 全部 AI 模型失败/无效 → 降级规则识别
-    console.warn('全部 AI 模型不可用，降级规则识别:', lastErr);
-    const r = extractFromText(content);
-    openPreview(r, link, 'AI 提取失败，已用规则识别', content);
+    if(imageDataUrl){
+      // 图片全部视觉模型失败：没有文字可规则识别，明确提示
+      console.warn('图片识别全部失败:', lastErr);
+      toast('图片识别失败（'+lastErr+'），可稍后重试或直接粘贴文字');
+    }else{
+      // 纯文字全部 AI 模型失败/无效 → 降级规则识别
+      console.warn('全部 AI 模型不可用，降级规则识别:', lastErr);
+      const r = extractFromText(content);
+      openPreview(r, link, 'AI 提取失败，已用规则识别', content);
+    }
   }finally{
     if(btn){ btn.disabled=false; btn.textContent='✨ 智能提取'; }
   }
@@ -1269,7 +1352,7 @@ function toast(msg){
 }
 
 // ============ 初始化 ============
-const VERSION='v0.6.8';
+const VERSION='v0.6.9';
 bindTypePick('m-type-pick','m-type','m');
 // 云同步初始化：恢复会话
 initSupabase();
@@ -1280,6 +1363,6 @@ document.getElementById('entry-list').addEventListener('click',function(ev){
 });
 render();
 </script>
-<div class="footer">行前夹 <span class="ver">v0.6.8</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
+<div class="footer">行前夹 <span class="ver">v0.6.9</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
 </body>
 </html>

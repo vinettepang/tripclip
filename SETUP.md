@@ -114,7 +114,7 @@ Supabase 新项目默认的 Site URL 是 `http://localhost:3000`，不改的话�
 Supabase 新项目默认 Site URL 是 `http://localhost:3000`。去 **Authentication → URL Configuration** 把 **Site URL** 改成线上地址（如 `https://你的用户名.github.io/tripclip/`），并添加 Redirect URL `https://你的用户名.github.io/tripclip/**`，保存后重新注册即可。已发出的旧邮件链接不会变，需重新注册。
 
 **Q：小红书正文是口语化文案，提取不准确怎么办？**  
-开箱版已内置智谱 API Key，「智能提取」直接用 AI 理解口语化表达（如"两个人吃了两百多"→ 人均约 100），无需任何配置。输入框右下角可选择模型（默认 `glm-4.6v`，另有免费版 `glm-4.6v-flash` / `glm-4-flash`）；所选模型失败或返回无效时自动降级其他模型，全部失败才退回规则识别，提取结果均可在预览弹窗里修改后确认保存。若想换自己的 Key（自建 API 或想换 DeepSeek / 通义等接口），在浏览器开发者工具 Console 里执行 `localStorage.setItem('tripclip.ai.v1', JSON.stringify({endpoint:'https://.../v1/chat/completions', key:'你的Key', model:'模型名'}))` 即可覆盖内置默认。
+开箱版已内置智谱 API Key，「智能提取」直接用 AI 理解口语化表达（如"两个人吃了两百多"→ 人均约 100），无需任何配置。也可以点 **「🖼 传图识别」** 上传小红书笔记截图/门票/时刻表照片，AI 直接看图识别文字并提取（自动走视觉模型链，识别出的图中文字会存入行程的「小红书原文」）。输入框右下角可选择模型（默认 `glm-4.6v`，另有免费版 `glm-4.6v-flash` / `glm-4-flash`）；所选模型失败或返回无效时自动降级其他模型，全部失败才退回规则识别，提取结果均可在预览弹窗里修改后确认保存。若想换自己的 Key（自建 API 或想换 DeepSeek / 通义等接口），在浏览器开发者工具 Console 里执行 `localStorage.setItem('tripclip.ai.v1', JSON.stringify({endpoint:'https://.../v1/chat/completions', key:'你的Key', model:'模型名'}))` 即可覆盖内置默认。
 
 **Q：国内访问慢/打不开怎么办？**  
 项目区域选的新加坡/东京一般可用。如果完全不可用，备选方案是换 LeanCloud（国内版），需要另建项目，结构类似。
