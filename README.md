@@ -1,6 +1,6 @@
 # 行前夹 TripClip — 使用说明
 
-> **当前版本：v0.5.1** · 更新于 2026-08-20
+> **当前版本：v0.6** · 更新于 2026-08-20
 
 **一个帮助"手动攻略型"自由行用户在出行前收集、整理、整合旅行资料的 Web 工具。**
 
@@ -65,10 +65,10 @@ python3 -m http.server 8123
 
 ## 文件
 
-- `index.html` — 应用本体（单文件，含全部样式与逻辑，当前正式版 v0.5.1）
+- `index.html` — 应用本体（单文件，含全部样式与逻辑，当前正式版 v0.6）
 - `vendor/supabase.min.js` — Supabase JS SDK（本地化，不依赖外部 CDN）
 - `supabase-schema.sql` — 云数据库结构（建表 + 行级安全策略，Supabase SQL Editor 里跑一次）
-- `SETUP.md` — 云同步配置手册（建 Supabase 项目 → 建表 → 填 key → 注册账号）
+- `SETUP.md` — 云同步配置手册（自建 Supabase 项目时使用；**开箱版已内置默认配置，无需任何设置**）
 - `.github/workflows/deploy.yml` — GitHub Pages 自动部署（push main 自动发布）
 - `PUBLISH.md` — 发布到 GitHub Pages 的手动操作手册
 - `index.v0.4.html` — 含 Notion 同步功能的完整代码（**二期资产**，暂不启用）
@@ -78,7 +78,10 @@ python3 -m http.server 8123
 
 ## 版本记录
 
-> **正式版：v0.5.1**。v0.4 的 Notion 同步功能经评估推迟到二期，完整代码保留为二期资产。
+> **正式版：v0.6**。v0.4 的 Notion 同步功能经评估推迟到二期，完整代码保留为二期资产。
+
+### v0.6（2026-08-20）
+- 🚀 **开箱即用**：云端配置内置进应用，新用户无需填 URL / key，打开即可注册使用；设置面板自动预填并保留「恢复内置配置」入口（供覆盖为自建 Supabase 项目）
 
 ### v0.5.1（2026-08-20）
 - 🐛 修复云端写入失败：新增/迁移条目时补上 `user_id`（此前漏传，导致数据库 NOT NULL 约束拒绝、数据只进"待同步"队列）
