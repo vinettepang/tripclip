@@ -1,5 +1,5 @@
 -- ============================================================
--- 行前夹 TripClip v0.5 · Supabase 数据库结构
+-- 行前夹 TripClip v0.7 · Supabase 数据库结构
 -- 使用方法：Supabase 项目 → SQL Editor → New query → 粘贴全部 → Run
 -- ============================================================
 
@@ -23,12 +23,14 @@ create table if not exists public.entries (
   raw        text not null default '',
   source     text not null default '',
   pending    boolean not null default false,
+  in_trip    boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
--- 1b. 老项目升级（v0.6.8 起新增 raw 列，已建表的项目执行这条即可）
-alter table public.entries add column if not exists raw text not null default '';
+-- 1b. 老项目升级（幂等，可重复执行；已建表的项目执行下面这几条即可）
+alter table public.entries add column if not exists raw text not null default '';     -- v0.6.8：小红书原文
+alter table public.entries add column if not exists in_trip boolean not null default false; -- v0.7：勾选加入行程单
 
 -- 2. 行级安全策略：每个用户只能读写自己的数据（最关键的一步）
 alter table public.entries enable row level security;

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>行前夹 TripClip v0.6.9 · 出行前资料收集</title>
+<title>行前夹 TripClip v0.7.0 · 出行前资料收集</title>
 <script src="vendor/supabase.min.js"></script>
 <style>
 :root{
@@ -113,6 +113,46 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
 /* toast */
 #toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:10px 20px;border-radius:999px;font-size:13px;opacity:0;transition:all .3s;pointer-events:none;z-index:100}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+/* trip checkbox */
+.trip-check{width:22px;height:22px;flex-shrink:0;position:relative;cursor:pointer;margin-top:2px;display:block}
+.trip-check input{position:absolute;inset:0;opacity:0;cursor:pointer;margin:0;z-index:2}
+.trip-check .box{position:absolute;inset:0;border:2px solid var(--line);border-radius:50%;background:#fff;transition:all .2s;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700}
+.trip-check:hover .box{border-color:var(--teal)}
+.trip-check input:checked + .box{background:var(--teal);border-color:var(--teal)}
+.trip-check input:checked + .box::after{content:'✓'}
+/* trip sheet modal */
+.trip-sheet-head{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px dashed var(--line);margin-bottom:14px}
+.trip-sheet-head .field{flex:1;min-width:200px;margin:0}
+.trip-summary{font-size:12px;color:var(--sub)}
+.trip-summary b{color:var(--ink)}
+.sheet-day{margin-bottom:16px}
+.sheet-day-title{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--ink);margin-bottom:8px}
+.sheet-day-title .dn{background:var(--brand);color:#fff;border-radius:8px;padding:2px 10px;font-size:12px}
+.sheet-day-title .dd{color:var(--sub);font-size:12px;font-weight:500}
+.sheet-day-title .cnt{margin-left:auto;font-size:11px;color:var(--sub);font-weight:500}
+.sheet-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:12px;margin-bottom:7px;background:#fbfaf7;transition:border .2s}
+.sheet-item:hover{border-color:var(--brand)}
+.sheet-item .time{font-weight:700;color:var(--teal);font-size:13px;min-width:42px;font-variant-numeric:tabular-nums;flex-shrink:0}
+.sheet-item .time.none{color:var(--sub);font-weight:400}
+.sheet-item .sic{width:30px;height:30px;border-radius:9px;background:var(--tag);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.sheet-item .sbody{flex:1;min-width:0}
+.sheet-item .sname{font-size:14px;font-weight:600}
+.sheet-item .sname .stype{font-size:11px;color:var(--sub);background:var(--tag);padding:0 7px;border-radius:999px;margin-left:6px;font-weight:400}
+.sheet-item .saddr{font-size:12px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sheet-item .sact{display:flex;gap:6px;flex-shrink:0}
+.sheet-empty{text-align:center;padding:36px 16px;color:var(--sub)}
+.sheet-empty .big{font-size:40px;margin-bottom:8px}
+/* print area（打印时只显示行程单） */
+#print-area{display:none}
+@media print{
+  body *{visibility:hidden}
+  #print-area,#print-area *{visibility:visible}
+  #print-area{display:block!important;position:absolute;left:0;top:0;width:100%;z-index:9999}
+  #print-area .print-title{font-size:22px;font-weight:800;margin-bottom:4px}
+  #print-area .print-sub{font-size:12px;color:#666;margin-bottom:16px;border-bottom:2px solid #333;padding-bottom:8px}
+  #print-area .sheet-item{background:#fff;border:1px solid #ccc;break-inside:avoid}
+  #print-area .sact button{display:none}
+}
 /* responsive */
 @media(max-width:600px){
   .preview-grid{grid-template-columns:1fr}
@@ -120,6 +160,9 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
   .row{flex-direction:column}
   .entry{flex-direction:column}
   .entry .actions{flex-direction:row;align-items:center}
+  .trip-check{margin-bottom:4px}
+  .sheet-item{flex-wrap:wrap}
+  .sheet-item .sact{margin-left:auto}
 }
 .tag-adder{display:flex;gap:6px;margin-top:8px}
 .tag-adder input{flex:1;padding:4px 10px;font-size:12px}
@@ -165,13 +208,14 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
     <div class="brand">
       <div class="logo">🧭</div>
       <div>
-        <h1>行前夹 <span class="ver-badge">v0.6.9</span></h1>
+        <h1>行前夹 <span class="ver-badge">v0.7.0</span></h1>
         <small>TRIP CLIP · 出行前资料收集</small>
       </div>
     </div>
     <div class="stats">
       <span class="stat-chip">已收藏 <b id="stat-total">0</b></span>
       <span class="stat-chip">待确认 <b id="stat-todo">0</b></span>
+      <span class="stat-chip" style="cursor:pointer" onclick="openModal('trip')" title="查看勾选的行程单">🧳 行程单 <b id="stat-trip">0</b></span>
       <span class="stat-chip" id="auth-chip" style="cursor:pointer" onclick="onAuthChip()" title="登录后 Mac 与手机数据自动同步">👤 <b id="auth-label">未登录</b></span>
     </div>
   </header>
@@ -231,6 +275,7 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
   <div class="toolbar">
     <h2>我的收藏</h2>
     <span class="spacer"></span>
+    <button class="btn btn-primary btn-sm" onclick="openModal('trip')">🧳 行程单 <span id="tool-trip-count" style="font-weight:700">0</span></button>
     <button class="btn btn-ghost btn-sm" onclick="exportMD()">导出 Markdown</button>
     <button class="btn btn-ghost btn-sm" onclick="exportCSV()">导出 CSV</button>
     <button class="btn btn-ghost btn-sm" onclick="clearAll()">清空</button>
@@ -340,7 +385,14 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
       <div class="field"><label>备注 / 小贴士</label><input type="text" id="e-note"></div>
       <div class="field full"><label>标签（逗号分隔）</label><input type="text" id="e-tags" placeholder="大阪,美食,第一天"></div>
       <div class="field full"><label>原文链接</label><input type="text" id="e-link"></div>
-      <div class="field full"><label>小红书原文（可折叠存放）</label><textarea id="e-raw" rows="3" placeholder="粘贴小红书笔记正文，可多行存放"></textarea>
+      <div class="field full"><label>小红书原文（可折叠存放）</label><textarea id="e-raw" rows="3" placeholder="粘贴小红书笔记正文，可多行存放"></textarea></div>
+      <div class="field full" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink)">
+        <label class="trip-check" style="margin:0" title="加入行程单">
+          <input type="checkbox" id="e-trip">
+          <span class="box"></span>
+        </label>
+        <span>加入行程单（与其他勾选的条目整合成行程单）</span>
+      </div>
     </div>
     <div class="btn-row" style="margin-top:16px">
       <button class="btn btn-primary" onclick="saveEdit()">保存</button>
@@ -378,7 +430,7 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
       <div class="field"><label>人均/价格</label><input type="text" id="m-price"></div>
       <div class="field full"><label>标签（逗号分隔）</label><input type="text" id="m-tags" placeholder="大阪,酒店,已预订"></div>
       <div class="field full"><label>来源链接（可选）</label><input type="text" id="m-link" placeholder="https://…"></div>
-      <div class="field full"><label>小红书原文（可选）</label><textarea id="m-raw" rows="3" placeholder="粘贴小红书笔记正文，可多行存放"></textarea>
+      <div class="field full"><label>小红书原文（可选）</label><textarea id="m-raw" rows="3" placeholder="粘贴小红书笔记正文，可多行存放"></textarea></div>
     </div>
     <div class="btn-row" style="margin-top:16px">
       <button class="btn btn-primary" onclick="saveManual()">保存</button>
@@ -386,6 +438,26 @@ textarea:focus,input[type=text]:focus,input[type=password]:focus{outline:none;bo
     </div>
   </div>
 </div>
+
+<!-- 行程单弹窗：勾选的条目按天整合 -->
+<div class="modal-mask" id="modal-trip">
+  <div class="modal" style="max-width:680px">
+    <h3>🧳 行程单 <span class="hint" style="margin-left:8px;font-weight:400">勾选的收藏按日期整合成一次旅行</span> <span class="close" onclick="closeModal('trip')">✕</span></h3>
+    <div class="trip-sheet-head">
+      <div class="field"><label>行程名称</label><input type="text" id="trip-name" placeholder="如：京都五日游" onchange="saveTripName()"></div>
+      <div class="btn-row">
+        <span class="trip-summary" id="trip-summary"></span>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost btn-sm" onclick="printTrip()" title="打印成纸质行程单">🖨 打印</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportTripMD()" title="导出 Markdown 行程单">⬇ 导出</button>
+      </div>
+    </div>
+    <div id="trip-sheet"></div>
+  </div>
+</div>
+
+<!-- 打印区域：window.print 时只输出行程单 -->
+<div id="print-area"></div>
 
 <div id="toast"></div>
 
@@ -585,7 +657,8 @@ function toDB(e){
     address:e.address||'', hours:e.hours||'', price:e.price||'',
     cancel:e.cancel||'', date_time:e.dateTime||'', from_to:e.fromTo||'',
     code:e.code||'', extra:e.extra||'', note:e.note||'',
-    link:e.link||'', raw:e.raw||'', source:e.source||'', pending:!!e.pending
+    link:e.link||'', raw:e.raw||'', source:e.source||'', pending:!!e.pending,
+    in_trip: !!e.inTrip
   };
 }
 function fromDB(row){
@@ -595,6 +668,7 @@ function fromDB(row){
     cancel:row.cancel, dateTime:row.date_time, fromTo:row.from_to,
     code:row.code, extra:row.extra, note:row.note,
     link:row.link, raw:row.raw||'', source:row.source, pending:row.pending,
+    inTrip: !!row.in_trip,
     createdAt:new Date(row.created_at).getTime()
   };
 }
@@ -1052,7 +1126,7 @@ function savePreview(){
 let editingId=null;
 // 从重置邮件跳回：身份已确认，打开设置新密码弹窗
 function openResetPass(){ openModal('reset-pass'); }
-const MODAL_MAP={edit:'modal-edit',manual:'modal-manual',login:'modal-login','reset-pass':'modal-reset-pass',preview:'modal-preview'};
+const MODAL_MAP={edit:'modal-edit',manual:'modal-manual',login:'modal-login','reset-pass':'modal-reset-pass',preview:'modal-preview',trip:'modal-trip'};
 function openModal(kind){
   if(kind==='edit'){
     document.getElementById('modal-edit').classList.add('open');
@@ -1065,6 +1139,10 @@ function openModal(kind){
     document.getElementById('modal-reset-pass').classList.add('open');
   }else if(kind==='preview'){
     document.getElementById('modal-preview').classList.add('open');
+  }else if(kind==='trip'){
+    document.getElementById('trip-name').value=getTripName();
+    renderTripSheet();
+    document.getElementById('modal-trip').classList.add('open');
   }else{
     ['m-name','m-type','m-price','m-address','m-datetime','m-code','m-fromto','m-extra','m-cancel','m-tags','m-link','m-raw'].forEach(i=>document.getElementById(i).value='');
     setManualType('其他');
@@ -1092,6 +1170,7 @@ function editEntry(id){
   document.getElementById('e-tags').value=e.tags.join(',');
   document.getElementById('e-link').value=e.link||'';
   document.getElementById('e-raw').value=e.raw||'';
+  document.getElementById('e-trip').checked=!!e.inTrip;
   openModal('edit');
 }
 function saveEdit(){
@@ -1110,6 +1189,7 @@ function saveEdit(){
   e.tags=parseTags(document.getElementById('e-tags').value);
   e.link=document.getElementById('e-link').value.trim();
   e.raw=document.getElementById('e-raw').value.trim();
+  e.inTrip=document.getElementById('e-trip').checked;
   e.pending=false;
   save(); enqueueSync({op:'update', entry:e});
   closeModal('edit'); toast('已保存');
@@ -1220,6 +1300,7 @@ function render(){
   const shown=entries.filter(e=>(!activeType||e.type===activeType)&&(!activeTag||e.tags.includes(activeTag)));
   document.getElementById('stat-total').textContent=entries.length;
   document.getElementById('stat-todo').textContent=entries.filter(e=>e.pending).length;
+  updateTripCount();
   if(shown.length===0){
     list.innerHTML='<div class="empty-state"><div class="big">🧳</div><h3>'+(entries.length===0?'还没有收藏':'没有匹配的条目')+'</h3><p>'+(entries.length===0?'粘贴一条小红书链接或正文，开始你的行程收集':'换个类型或标签试试')+'</p></div>';
     return;
@@ -1241,6 +1322,10 @@ function render(){
       ?`<span>📍 <b class="addr" title="点击复制地址" data-copy="${esc(e.address)}">${esc(e.address)}</b><button class="copy-btn" data-copy="${esc(e.address)}" title="复制地址">📋 复制</button></span>`
       :'';
     return `<div class="entry">
+      <label class="trip-check" title="${e.inTrip?'已在行程单中，点击移出':'加入行程单'}">
+        <input type="checkbox" ${e.inTrip?'checked':''} onchange="toggleTrip('${e.id}')">
+        <span class="box"></span>
+      </label>
       <div class="icon">${icon}</div>
       <div class="body">
         <div class="top"><span class="name">${esc(e.name)}</span>${e.type?`<span class="type">${esc(e.type)}</span>`:''}${pendingHtml}</div>
@@ -1292,6 +1377,167 @@ function fallbackCopy(text,done){
   ta.select();
   try{ document.execCommand('copy'); done(); }catch(e){ toast('复制失败，请手动选中地址复制'); }
   document.body.removeChild(ta);
+}
+
+// ============ 行程单（勾选整合，按天分组） ============
+const TRIP_NAME_KEY='tripclip.tripname.v1';
+function getTripName(){
+  try{ return localStorage.getItem(TRIP_NAME_KEY)||'我的行程'; }catch(e){ return '我的行程'; }
+}
+function saveTripName(){
+  const input=document.getElementById('trip-name');
+  const v=(input&&input.value||'').trim();
+  if(!v){ if(input) input.value=getTripName(); toast('行程名称不能为空'); return; }
+  try{ localStorage.setItem(TRIP_NAME_KEY,v); }catch(e){}
+  toast('行程名称已保存');
+}
+function toggleTrip(id){
+  const e=entries.find(x=>x.id===id); if(!e) return;
+  e.inTrip=!e.inTrip;
+  save(); enqueueSync({op:'update', entry:e});
+  const sheet=document.getElementById('modal-trip');
+  if(sheet && sheet.classList.contains('open')) renderTripSheet();
+  toast(e.inTrip?'✓ 已加入行程单':'已移出行程单');
+}
+function updateTripCount(){
+  const n=entries.filter(e=>e.inTrip).length;
+  const a=document.getElementById('stat-trip'); if(a) a.textContent=n;
+  const b=document.getElementById('tool-trip-count'); if(b) b.textContent=n;
+}
+// 日期解析：优先级 标签「第X天/D1/DAY2」> dateTime 内日期（08-20 / 8月20日 / 2026-08-20）；都没有 → 未排期
+const CN_NUM={一:1,二:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9};
+function cnNumToInt(s){
+  if(/^\d+$/.test(s)) return parseInt(s,10);
+  let n=0;
+  for(const ch of s){
+    if(ch==='十') n = n===0 ? 10 : n*10;
+    else if(CN_NUM[ch]!=null) n += CN_NUM[ch];
+  }
+  return n||0;
+}
+function sheetDay(e){
+  const tag=(e.tags||[]).find(t=>/^(?:第?[一二三四五六七八九十\d]+天|D\s*\d+|DAY\s*\d+)$/i.test(t.trim()));
+  if(tag){
+    const m=tag.match(/D(?:AY)?\s*(\d+)/i) || tag.match(/第?([一二三四五六七八九十\d]+)天/);
+    if(m){
+      const n=cnNumToInt(m[1]);
+      if(n>0) return {label:'Day '+n, num:n};
+    }
+  }
+  const dt=e.dateTime||'';
+  let m=dt.match(/(\d{4})[-/年.](\d{1,2})[-/月.](\d{1,2})/);
+  if(m) return {label:m[2]+'-'+m[3], num:(parseInt(m[2],10)-1)*31+parseInt(m[3],10)};
+  m=dt.match(/(\d{1,2})[-/.](\d{1,2})/);
+  if(m) return {label:m[1]+'-'+m[2], num:(parseInt(m[1],10)-1)*31+parseInt(m[2],10)};
+  m=dt.match(/(\d{1,2})月(\d{1,2})日/);
+  if(m) return {label:m[1]+'-'+m[2], num:(parseInt(m[1],10)-1)*31+parseInt(m[2],10)};
+  return null;
+}
+function sheetTime(e){
+  const m=(e.dateTime||'').match(/(\d{1,2})[:：](\d{2})/);
+  return m ? parseInt(m[1],10)*60+parseInt(m[2],10) : null;
+}
+function buildTripGroups(){
+  // 返回 [{day:{label,num}|null, items:[...]}]，按日期排序、组内按时间排序（无时间排末尾）
+  const picked=entries.filter(e=>e.inTrip);
+  const groups=new Map();
+  picked.forEach(e=>{
+    const day=sheetDay(e);
+    const key=day?String(day.num):'none';
+    if(!groups.has(key)) groups.set(key,{day, items:[]});
+    groups.get(key).items.push(e);
+  });
+  const arr=[...groups.values()];
+  arr.forEach(g=>{
+    g.items.sort((a,b)=>{
+      const ta=sheetTime(a), tb=sheetTime(b);
+      return (ta==null?Infinity:ta)-(tb==null?Infinity:tb);
+    });
+  });
+  arr.sort((x,y)=>{
+    const na=x.day?x.day.num:Infinity, nb=y.day?y.day.num:Infinity;
+    return na-nb;
+  });
+  return arr;
+}
+function sheetItemHtml(e){
+  const icon=typeIcon(e.type)==='📍'
+    ? ({餐厅:'🍜',美食:'🍜',咖啡:'☕',博物馆:'🏛️',美术馆:'🖼️',景点:'⛰️',酒店:'🏨',机票:'✈️',火车:'🚄',门票:'🎫',购物:'🛍️',酒吧:'🍸',甜品:'🍰'}[e.type]||'📍')
+    : typeIcon(e.type);
+  const t=sheetTime(e);
+  const timeHtml=t==null ? '<span class="time none">--:--</span>' : '<span class="time">'+String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0')+'</span>';
+  const addr=e.address || e.fromTo || '';
+  const addrHtml=addr?`<div class="saddr">${esc(addr)}</div>`:'';
+  return `<div class="sheet-item">
+    ${timeHtml}
+    <span class="sic">${icon}</span>
+    <div class="sbody">
+      <span class="sname">${esc(e.name)}${e.type?`<span class="stype">${esc(e.type)}</span>`:''}</span>
+      ${addrHtml}
+    </div>
+    <div class="sact">
+      <a class="linkout" href="${mapsUrl(e)}" target="_blank" rel="noopener">🗺 地图</a>
+      <button class="btn btn-ghost btn-sm" onclick="toggleTrip('${e.id}')" title="移出行程单">✕</button>
+    </div>
+  </div>`;
+}
+function renderTripSheet(){
+  const box=document.getElementById('trip-sheet');
+  const groups=buildTripGroups();
+  const picked=entries.filter(e=>e.inTrip);
+  const withDay=picked.filter(e=>sheetDay(e)).length;
+  const summary=document.getElementById('trip-summary');
+  if(summary) summary.innerHTML= picked.length===0
+    ? '还没有勾选任何条目'
+    : '共 <b>'+picked.length+'</b> 个地点 · 覆盖 <b>'+groups.filter(g=>g.day).length+'</b> 天'+(withDay<picked.length?' · <b>'+(picked.length-withDay)+'</b> 个未排期':'');
+  if(picked.length===0){
+    box.innerHTML='<div class="sheet-empty"><div class="big">🧳</div><p>还没有勾选任何条目。<br>回到收藏列表，点条目左侧的圆圈即可加入行程单。</p></div>';
+    return;
+  }
+  box.innerHTML=groups.map(g=>{
+    const titleHtml=g.day
+      ? '<span class="dn">'+esc(g.day.label)+'</span>'
+      : '<span class="dn" style="background:var(--sub)">未排期</span>';
+    return '<div class="sheet-day"><div class="sheet-day-title">'+titleHtml+'<span class="cnt">'+g.items.length+' 项</span></div>'+g.items.map(sheetItemHtml).join('')+'</div>';
+  }).join('');
+}
+function printTrip(){
+  const groups=buildTripGroups();
+  const picked=entries.filter(e=>e.inTrip);
+  if(picked.length===0){ toast('还没有勾选的条目'); return; }
+  const area=document.getElementById('print-area');
+  const dayRow=g=>'<div class="sheet-day-title" style="margin-top:18px;font-size:16px">'+(g.day?esc(g.day.label):'未排期')+'</div>'+g.items.map(sheetItemHtml).join('');
+  area.innerHTML='<div class="print-title">🧳 '+esc(getTripName())+'</div>'
+    +'<div class="print-sub">'+new Date().toLocaleString('zh-CN')+' · 共 '+picked.length+' 项</div>'
+    +groups.map(dayRow).join('');
+  window.print();
+}
+function exportTripMD(){
+  const groups=buildTripGroups();
+  const picked=entries.filter(e=>e.inTrip);
+  if(picked.length===0){ toast('还没有勾选的条目'); return; }
+  let md='# '+getTripName()+'\n\n> 行程单 · 共 '+picked.length+' 项 · '+new Date().toLocaleString('zh-CN')+'（行前夹 '+VERSION+'）\n\n';
+  groups.forEach(g=>{
+    md+='## '+(g.day?g.day.label:'未排期')+'\n\n';
+    g.items.forEach(e=>{
+      const t=sheetTime(e);
+      const timeStr=t==null?'--:--':String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
+      md+='- **'+timeStr+'** '+((e.type&&e.type!=='其他')?'('+e.type+') ':'')+'**'+e.name+'**';
+      if(e.fromTo) md+=' — '+e.fromTo;
+      md+='\n';
+      if(e.address) md+='  - 地址：'+e.address+'\n';
+      if(e.hours) md+='  - 营业时间：'+e.hours+'\n';
+      if(e.price) md+='  - 人均：'+e.price+'\n';
+      if(e.extra) md+='  - 订单/备注：'+e.extra+'\n';
+      if(e.cancel) md+='  - 免费退订：'+e.cancel+'\n';
+      if(e.note) md+='  - 备注：'+e.note+'\n';
+      md+='  - 地图：https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([e.name,e.address].filter(Boolean).join(' '))+'\n';
+      if(e.link) md+='  - 原文：'+e.link+'\n';
+    });
+    md+='\n';
+  });
+  download('trip-sheet-'+dateStamp()+'.md', md, 'text/markdown');
+  toast('已导出行程单 Markdown');
 }
 
 // ============ 导出 ============
@@ -1352,7 +1598,7 @@ function toast(msg){
 }
 
 // ============ 初始化 ============
-const VERSION='v0.6.9';
+const VERSION='v0.7.0';
 bindTypePick('m-type-pick','m-type','m');
 // 云同步初始化：恢复会话
 initSupabase();
@@ -1363,6 +1609,6 @@ document.getElementById('entry-list').addEventListener('click',function(ev){
 });
 render();
 </script>
-<div class="footer">行前夹 <span class="ver">v0.6.9</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
+<div class="footer">行前夹 <span class="ver">v0.7.0</span> · 登录后 Mac / 手机数据自动同步 · 数据存云端 + 本机缓存 · 建议定期导出备份</div>
 </body>
 </html>
